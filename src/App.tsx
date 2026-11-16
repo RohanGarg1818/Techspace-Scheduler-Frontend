@@ -16,7 +16,6 @@ import {
   GhostRange,
   NavSection,
   ThemeMode,
-  UserRole,
 } from "./types/calendar";
 import {
   CLUBS,
@@ -38,12 +37,13 @@ import {
 import { isDateInRange } from "./utils/conflictUtils";
 import {
   canAccessAdminControls,
+  canPublishAnnouncement,
+  canDeleteAnnouncement,
   canCancelMeeting,
   canEditMeeting,
   canManageGhostRange,
   canManageMom,
   canViewPrivateDetails,
-  DEMO_USERS,
 } from "./utils/permissions";
 import {
   addDeduplicatedNotification,
@@ -74,6 +74,7 @@ import {
   CalendarDragSelection,
   EventModal,
   SchedulingKind,
+  AdminActionTab,
 } from "./components/EventModal";
 import { AllMeetsView } from "./components/AllMeetsView";
 import Dashboard from "./pages/Dashboard";
@@ -82,10 +83,7 @@ import { LumaSpin } from "./components/ui/luma-spin";
 import { SpringSegmentedControl } from "./components/ui/SpringSegmentedControl";
 import { getCurrentUser, logout, type AuthUser } from "./services/authService";
 import { getAuthToken } from "./services/apiClient";
-import {
-  users,
-  meetings as initialDashboardMeetings,
-} from "./data/dashboardData";
+import { users } from "./data/dashboardData";
 function formatDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -93,6 +91,8 @@ function formatDateKey(date: Date): string {
 
   return `${year}-${month}-${day}`;
 }
+import UserManagement from "./pages/UserManagement";
+import { canManageUsers } from "./utils/permissions";
 
 function BackgroundDecor({ theme }: { theme: ThemeMode }) {
   const isDark = theme === "dark";
@@ -320,9 +320,6 @@ export function App() {
           : teamIds,
     };
   }, [authUser]);
-  const [dashboardMeetings, setDashboardMeetings] = useState(
-    initialDashboardMeetings,
-  );
 
   const dashboardRole =
     currentUser.role === "ob"
@@ -330,15 +327,50 @@ export function App() {
       : currentUser.role === "faculty"
         ? "Faculty"
         : currentUser.role === "team_lead"
-          ? "Lead"
+          ? "Team Lead"
           : "Member";
 
+  const dashboardUserKey: keyof typeof users = dashboardRole;
+
   const dashboardUser = {
-    ...users[dashboardRole],
+    ...users[dashboardUserKey],
     name: currentUser.name,
   };
 
   const [events, setEvents] = useState<CalendarEvent[]>(INITIAL_EVENTS);
+
+  const dashboardMeetings = useMemo(() => {
+    return events.map((event) => {
+      const team = CLUBS.find((club) => club.id === event.clubId);
+
+      const [hours, minutes] = event.startTime.split(":").map(Number);
+      const time = new Date();
+      time.setHours(hours, minutes);
+
+      return {
+        id: event.id,
+        title: event.title,
+        date: event.date,
+        day: event.date.slice(8, 10),
+        month: new Date(`${event.date}T00:00:00`)
+          .toLocaleString("en", { month: "short" })
+          .toUpperCase(),
+        time: time.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        endTime: event.endTime,
+        team: team?.name || "Society",
+        teamId: event.clubId,
+        place: event.location,
+        tone: "blue",
+        createdBy: event.organizer,
+        momUploaded: Boolean(event.mom),
+        momUrl: event.mom,
+      };
+    });
+  }, [events]);
+
   const [ghostRanges, setGhostRanges] =
     useState<GhostRange[]>(INITIAL_GHOST_RANGES);
   const [announcements, setAnnouncements] = useState<Announcement[]>(
@@ -370,6 +402,8 @@ export function App() {
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
+  const [modalInitialTab, setModalInitialTab] =
+    useState<AdminActionTab>("meeting");
   const [modalSchedulingKind, setModalSchedulingKind] =
     useState<SchedulingKind>("confirmed");
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -436,9 +470,9 @@ export function App() {
     if (!isBackendConfigured || !authUser) return;
 
     let isMounted = true;
-    // Calculate date window for current view (approx +/- 2 months from main view)
-    const startDate = formatDateKey(new Date(mainYear, mainMonthIndex, 1));
-    const endDate = formatDateKey(new Date(mainYear, mainMonthIndex + 1, 0));
+    // Load a broad date range so Dashboard can show past and upcoming meetings.
+    const startDate = addDays(todayDateKey, -730);
+    const endDate = addDays(todayDateKey, 1095);
 
     fetchMeetings(startDate, endDate)
       .then((backendMeetings) => {
@@ -463,7 +497,7 @@ export function App() {
     return () => {
       isMounted = false;
     };
-  }, [mainYear, mainMonthIndex, authUser]);
+  }, [authUser, todayDateKey]);
 
   // Auto-dismiss transient success toast
   useEffect(() => {
@@ -494,7 +528,7 @@ export function App() {
 
   const activeLookupDate = selectedDateKey ?? todayDateKey;
 
-  const selectedDayEvents = useMemo(() => { 
+  const selectedDayEvents = useMemo(() => {
     return filteredEvents
       .filter((ev) => ev.date === activeLookupDate)
       .sort(
@@ -716,6 +750,35 @@ export function App() {
     setIsAdminModalOpen(true);
   };
 
+  const openDashboardAdminModal = (tab: AdminActionTab) => {
+    if (tab === "meeting" && !canAccessAdminControls(currentUser)) return;
+    if (tab === "announcement" && !canPublishAnnouncement(currentUser)) return;
+
+    setEditingEvent(null);
+    setEditingGhostRange(null);
+    setConvertingGhostRange(null);
+    setPickedCalendarRange(null);
+    setDragSelection(null);
+    setModalSchedulingKind("confirmed");
+    setModalInitialTab(tab);
+    setIsAdminModalOpen(true);
+  };
+
+  const handleEditDashboardMeeting = (meeting: { id: string }) => {
+    const event = events.find((item) => item.id === meeting.id);
+
+    if (!event || !canEditMeeting(currentUser, event)) return;
+
+    setEditingEvent(event);
+    setEditingGhostRange(null);
+    setConvertingGhostRange(null);
+    setPickedCalendarRange(null);
+    setDragSelection(null);
+    setModalInitialTab("meeting");
+    setModalSchedulingKind("confirmed");
+    setIsAdminModalOpen(true);
+  };
+
   const handleSubmitMeeting = async (
     payload: CreateMeetingPayload,
     editingId?: string,
@@ -899,6 +962,33 @@ export function App() {
     setToastMessage(`Announcement "${created.title}" published.`);
   };
 
+  const handleDeleteAnnouncement = async (announcement: Announcement) => {
+    if (!canDeleteAnnouncement(currentUser, announcement)) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete "${announcement.title}"?`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await deleteAnnouncement(announcement.id, currentUser, announcement);
+
+      setAnnouncements((prev) =>
+        prev.filter((item) => item.id !== announcement.id),
+      );
+
+      setToastMessage(`Announcement "${announcement.title}" deleted.`);
+    } catch (error) {
+      console.error("Failed to delete announcement:", error);
+      setToastMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete announcement.",
+      );
+    }
+  };
+
   const handleMarkGhostCoordinated = (holdIds: string[]) => {
     setNotifications((prev) =>
       addDeduplicatedNotification(prev, {
@@ -912,10 +1002,6 @@ export function App() {
     );
   };
 
-  // Demo role switching is disabled while using real authentication.
-  const handleSelectDemoRole = (_role: UserRole) => {
-    setToastMessage("Roles are assigned by your TechSpace account.");
-  };
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -1107,7 +1193,6 @@ export function App() {
             activeNav={activeNav}
             onSelectNav={setActiveNav}
             currentUser={currentUser}
-            onSelectDemoRole={handleSelectDemoRole}
             onToggleTheme={handleToggleTheme}
             todayEvents={todayEvents}
             clubs={CLUBS}
@@ -1489,17 +1574,28 @@ export function App() {
               onUpdateEventMom={handleUpdateEventMom}
               onOpenCreateModal={openFreshAdminModal}
             />
+          ) : activeNav === "users" && canManageUsers(currentUser) ? (
+            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto ts-scroll ts-page-scroll">
+              <UserManagement theme={theme} />
+            </div>
           ) : activeNav === "dashboard" ? (
             <div className="flex-1 min-w-0 min-h-0 overflow-y-auto ts-scroll ts-page-scroll">
               <Dashboard
                 user={dashboardUser}
                 role={dashboardRole}
                 meetings={dashboardMeetings}
-                setMeetings={setDashboardMeetings}
                 theme={theme}
                 onNavigateCalendar={() => setActiveNav("calendar")}
+                onOpenAdminModal={openDashboardAdminModal}
+                onEditMeeting={handleEditDashboardMeeting}
+                onUpdateEventMom={handleUpdateEventMom}
+                canCreateMeeting={canAccessAdminControls(currentUser)}
+                canPublishAnnouncement={canPublishAnnouncement(currentUser)}
                 announcements={announcements}
-                onSubmitAnnouncement={handleSubmitAnnouncement}
+                canDeleteAnnouncement={(announcement: Announcement) =>
+                  canDeleteAnnouncement(currentUser, announcement)
+                }
+                onDeleteAnnouncement={handleDeleteAnnouncement}
               />
             </div>
           ) : null}
@@ -1536,42 +1632,45 @@ export function App() {
       )}
 
       {/* Admin Controls / Scheduling Modal */}
-      {isAdminModalOpen && canAccessAdminControls(currentUser) && (
-        <EventModal
-          theme={theme}
-          palette={palette}
-          currentUser={currentUser}
-          clubs={CLUBS}
-          existingEvents={events}
-          ghostRanges={ghostRanges}
-          defaultDateKey={selectedDateKey ?? todayDateKey}
-          initialSchedulingKind={modalSchedulingKind}
-          editingEvent={editingEvent}
-          editingGhostRange={editingGhostRange}
-          convertingGhostRange={convertingGhostRange}
-          pickedCalendarRange={pickedCalendarRange}
-          dragSelection={dragSelection}
-          onRequestCalendarRangePick={() => {
-            setIsAdminModalOpen(false);
-            setViewMode("month");
-            setIsPickingGhostRange(true);
-            setRangePickStart(null);
-            setDragSelection(null);
-          }}
-          onClose={() => {
-            setIsAdminModalOpen(false);
-            setEditingEvent(null);
-            setEditingGhostRange(null);
-            setConvertingGhostRange(null);
-            setPickedCalendarRange(null);
-            setDragSelection(null);
-          }}
-          onSubmitMeeting={handleSubmitMeeting}
-          onSubmitGhostRange={handleSubmitGhostRange}
-          onSubmitAnnouncement={handleSubmitAnnouncement}
-          onMarkGhostCoordinated={handleMarkGhostCoordinated}
-        />
-      )}
+      {isAdminModalOpen &&
+        (canAccessAdminControls(currentUser) ||
+          canPublishAnnouncement(currentUser)) && (
+          <EventModal
+            theme={theme}
+            palette={palette}
+            currentUser={currentUser}
+            clubs={CLUBS}
+            existingEvents={events}
+            ghostRanges={ghostRanges}
+            defaultDateKey={selectedDateKey ?? todayDateKey}
+            initialSchedulingKind={modalSchedulingKind}
+            initialTab={modalInitialTab}
+            editingEvent={editingEvent}
+            editingGhostRange={editingGhostRange}
+            convertingGhostRange={convertingGhostRange}
+            pickedCalendarRange={pickedCalendarRange}
+            dragSelection={dragSelection}
+            onRequestCalendarRangePick={() => {
+              setIsAdminModalOpen(false);
+              setViewMode("month");
+              setIsPickingGhostRange(true);
+              setRangePickStart(null);
+              setDragSelection(null);
+            }}
+            onClose={() => {
+              setIsAdminModalOpen(false);
+              setEditingEvent(null);
+              setEditingGhostRange(null);
+              setConvertingGhostRange(null);
+              setPickedCalendarRange(null);
+              setDragSelection(null);
+            }}
+            onSubmitMeeting={handleSubmitMeeting}
+            onSubmitGhostRange={handleSubmitGhostRange}
+            onSubmitAnnouncement={handleSubmitAnnouncement}
+            onMarkGhostCoordinated={handleMarkGhostCoordinated}
+          />
+        )}
     </div>
   );
 }

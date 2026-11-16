@@ -4,7 +4,7 @@ export type CalendarViewMode = 'day' | 'week' | 'month';
 
 export type TimeSubfilter = 'day' | 'week' | 'month';
 
-export type NavSection = 'dashboard' | 'calendar' | 'meets';
+export type NavSection = 'dashboard' | 'calendar' | 'meets' | 'users';
 
 export type ClubId =
   | 'core-team'

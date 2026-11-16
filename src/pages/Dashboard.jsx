@@ -8,10 +8,10 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
-import CreateMeetingModal from "../components/dashboard/CreateMeetingModal";
 import "../dashboard.css";
 import "../dashboard-responsive.css";
 import { teams } from "../data/dashboardData";
@@ -88,7 +88,7 @@ function MiniCalendar({ meetings, onViewCalendar }) {
   );
 }
 
-function MeetingCard({ meeting, onEdit, onUploadMom, canEdit }) {
+function MeetingCard({ meeting, onEdit, onUpdateMom, canEdit }) {
   return (
     <article className="dashboard-meeting-row">
       <div className="meeting-date">
@@ -126,18 +126,43 @@ function MeetingCard({ meeting, onEdit, onUploadMom, canEdit }) {
             <Pencil size={15} />
           </button>
         )}
-        {onUploadMom && (
-          <label className="mom-upload-button" title="Upload MOM">
-            <Upload size={14} />
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx"
-              onChange={(event) =>
-                event.target.files?.[0] &&
-                onUploadMom(meeting, event.target.files[0])
-              }
-            />
-          </label>
+        {meeting.momUrl || meeting.mom ? (
+          /^https?:\/\//i.test(meeting.momUrl || meeting.mom) ? (
+            <a
+              className="mom-upload-button"
+              href={meeting.momUrl || meeting.mom}
+              target="_blank"
+              rel="noreferrer"
+              title="Open meeting MOM"
+            >
+              <Upload size={14} /> View MOM
+            </a>
+          ) : (
+            <span className="mom-upload-button" title="MOM notes saved">
+              <Upload size={14} /> MOM added
+            </span>
+          )
+        ) : null}
+        {onUpdateMom && isPastMeeting(meeting) && (
+          <button
+            type="button"
+            className="mom-upload-button"
+            title={
+              meeting.momUrl || meeting.mom
+                ? "Update MOM link or notes"
+                : "Add MOM link or notes"
+            }
+            onClick={() => {
+              const value = window.prompt(
+                "Paste the MOM document link (Google Drive, OneDrive, etc.) or enter meeting notes:",
+                meeting.momUrl || meeting.mom || "",
+              );
+              if (value !== null) onUpdateMom(meeting, value);
+            }}
+          >
+            <Upload size={14} />{" "}
+            {meeting.momUrl || meeting.mom ? "Update MOM" : "Add MOM"}
+          </button>
         )}
       </div>
     </article>
@@ -150,6 +175,7 @@ function MeetingPanel({
   onEdit,
   canCreate,
   canEdit,
+  onUpdateMom,
   title = "Upcoming Meetings",
 }) {
   return (
@@ -172,6 +198,7 @@ function MeetingPanel({
               key={meeting.id}
               meeting={meeting}
               onEdit={onEdit}
+              onUpdateMom={onUpdateMom}
               canEdit={canEdit}
             />
           ))
@@ -183,25 +210,32 @@ function MeetingPanel({
   );
 }
 
+/**
+ * @param {{
+ *   announcements?: import("../types/calendar").Announcement[],
+ *   canDeleteAnnouncement?: (announcement: import("../types/calendar").Announcement) => boolean,
+ *   onDeleteAnnouncement?: (announcement: import("../types/calendar").Announcement) => void,
+ *   [key: string]: any
+ * }} props
+ */
+
 export default function Dashboard({
   user,
   role,
-  meetings,
-  setMeetings,
+  meetings = [],
   onViewCalendar = () => {},
   theme = "light",
   onNavigateCalendar,
   announcements = [],
-  onSubmitAnnouncement,
+  onOpenAdminModal,
+  onEditMeeting,
+  onUpdateEventMom,
+  canCreateMeeting = false,
+  canPublishAnnouncement = false,
+  canDeleteAnnouncement = () => false,
+  onDeleteAnnouncement,
 }) {
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingMeeting, setEditingMeeting] = useState(null);
   const [visiblePastCount, setVisiblePastCount] = useState(8);
-  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
-  const [announcementTitle, setAnnouncementTitle] = useState("");
-  const [announcementDescription, setAnnouncementDescription] = useState("");
-  const [isSubmittingAnnouncement, setIsSubmittingAnnouncement] = useState(false);
-  const [announcementError, setAnnouncementError] = useState(null);
   const [tasks, setTasks] = useState([
     {
       id: "task1",
@@ -260,27 +294,30 @@ export default function Dashboard({
   const currentTask = myTeamTasks
     .filter((task) => task.status === "In Progress")
     .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))[0];
-  const createdByMe = meetings.filter(
-    (meeting) => meeting.createdBy === user?.name,
-  );
-  const meetingList = isFaculty ? meetings : createdByMe;
+  // App.tsx already supplies the meetings visible to the signed-in user.
+  // Do not filter by the old demo team IDs here: backend team IDs and calendar
+  // club IDs are different identifier systems.
+  const meetingList = meetings;
 
   const upcomingMine = meetingList
     .filter((meeting) => !isPastMeeting(meeting) && !meeting.cancelled)
-    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    .sort((a, b) => {
+      const dateOrder = (a.date || "").localeCompare(b.date || "");
+      return dateOrder || (a.time || "").localeCompare(b.time || "");
+    });
 
   const pastMine = meetingList
     .filter(isPastMeeting)
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const pendingMom = canManageMeetings
-    ? meetings.filter(
+    ? meetingList.filter(
         (meeting) =>
-          isPastMeeting(meeting) && !meeting.momUploaded && !meeting.momUrl,
+          isPastMeeting(meeting) &&
+          !(meeting.momUrl || meeting.mom || meeting.momUploaded),
       )
     : [];
   const coreTeams = teams.filter((team) => team.type === "core");
   const subClubs = teams.filter((team) => team.type === "subclub");
-  const currentDate = new Date();
   const greetingName = user?.name || "there";
   const roleLabel = role === "Faculty" ? "Faculty" : role;
   const calendarAction = onNavigateCalendar || onViewCalendar || (() => {});
@@ -288,27 +325,6 @@ export default function Dashboard({
     () => pastMine.slice(0, visiblePastCount),
     [pastMine, visiblePastCount],
   );
-
-  const saveMeeting = (meeting) => {
-    setMeetings((previous) => {
-      if (editingMeeting)
-        return previous.map((item) =>
-          item.id === editingMeeting.id ? { ...item, ...meeting } : item,
-        );
-      return [meeting, ...previous];
-    });
-    setEditingMeeting(null);
-    setShowCreateModal(false);
-  };
-  const uploadMom = (meeting, file) => {
-    setMeetings((previous) =>
-      previous.map((item) =>
-        item.id === meeting.id
-          ? { ...item, momUploaded: true, momFileName: file.name }
-          : item,
-      ),
-    );
-  };
 
   return (
     <div
@@ -431,7 +447,7 @@ export default function Dashboard({
           </section>
         )}
 
-        {isFaculty && (
+        {canPublishAnnouncement && (
           <section className="panel announcement-panel">
             <div className="panel-heading">
               <div>
@@ -441,116 +457,40 @@ export default function Dashboard({
 
               <button
                 className="compact-create-btn"
-                onClick={() => {
-                  setShowAnnouncementForm(true);
-                  setAnnouncementError(null);
-                }}
+                onClick={() => onOpenAdminModal?.("announcement")}
               >
                 <Plus size={14} /> Make Announcement
               </button>
             </div>
 
-            {showAnnouncementForm && (
-              <div className="announcement-form">
-                <h3>Create Announcement</h3>
-
-                {announcementError && (
-                  <p
-                    className="announcement-error"
-                    style={{
-                      color: "#ef4444",
-                      fontSize: "12px",
-                      marginBottom: "8px",
-                      lineHeight: "1.4",
-                    }}
-                  >
-                    {announcementError}
-                  </p>
-                )}
-
-                <input
-                  type="text"
-                  placeholder="Announcement title"
-                  value={announcementTitle}
-                  disabled={isSubmittingAnnouncement}
-                  onChange={(e) => setAnnouncementTitle(e.target.value)}
-                />
-
-                <textarea
-                  placeholder="Write announcement details..."
-                  value={announcementDescription}
-                  disabled={isSubmittingAnnouncement}
-                  onChange={(e) => setAnnouncementDescription(e.target.value)}
-                  rows={3}
-                />
-
-                <div className="announcement-form-actions">
-                  <button
-                    type="button"
-                    disabled={isSubmittingAnnouncement}
-                    onClick={() => {
-                      setShowAnnouncementForm(false);
-                      setAnnouncementTitle("");
-                      setAnnouncementDescription("");
-                      setAnnouncementError(null);
-                    }}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    className="compact-create-btn"
-                    disabled={
-                      isSubmittingAnnouncement ||
-                      !announcementTitle.trim() ||
-                      !announcementDescription.trim()
-                    }
-                    onClick={async () => {
-                      if (!onSubmitAnnouncement) {
-                        setAnnouncementError(
-                          "Announcement publishing is not configured.",
-                        );
-                        return;
-                      }
-                      setAnnouncementError(null);
-                      setIsSubmittingAnnouncement(true);
-                      try {
-                        await onSubmitAnnouncement({
-                          title: announcementTitle.trim(),
-                          content: announcementDescription.trim(),
-                          clubId: "announcements",
-                        });
-                        setAnnouncementTitle("");
-                        setAnnouncementDescription("");
-                        setShowAnnouncementForm(false);
-                      } catch (err) {
-                        setAnnouncementError(
-                          err?.message || "Failed to publish announcement.",
-                        );
-                      } finally {
-                        setIsSubmittingAnnouncement(false);
-                      }
-                    }}
-                  >
-                    {isSubmittingAnnouncement ? "Publishing..." : "Publish"}
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className="announcement-list">
               {announcements && announcements.length > 0 ? (
                 announcements.map((item) => (
                   <article className="announcement-card" key={item.id}>
-                    <h3>{item.title}</h3>
-                    <p>{item.content || item.description}</p>
-                    <span>
-                      {item.createdAt
-                        ? new Date(item.createdAt).toLocaleDateString("en-IN")
-                        : (item.date || "Just now")}{" "}
-                      · {item.publisherName || item.postedBy || "TechSpace"}
-                    </span>
+                    <div className="announcement-card-content">
+                      <h3>{item.title}</h3>
+
+                      <p>{item.content || item.description}</p>
+
+                      <span>
+                        {item.createdAt
+                          ? new Date(item.createdAt).toLocaleDateString("en-IN")
+                          : item.date || "Just now"}{" "}
+                        · {item.publisherName || item.postedBy || "TechSpace"}
+                      </span>
+                    </div>
+
+                    {canDeleteAnnouncement(item) && (
+                      <button
+                        type="button"
+                        className="icon-action"
+                        title="Delete announcement"
+                        aria-label={`Delete ${item.title}`}
+                        onClick={() => onDeleteAnnouncement?.(item)}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </article>
                 ))
               ) : (
@@ -566,9 +506,12 @@ export default function Dashboard({
           <MiniCalendar meetings={meetings} onViewCalendar={calendarAction} />
           <MeetingPanel
             meetings={upcomingMine}
-            onCreate={() => setShowCreateModal(true)}
-            onEdit={setEditingMeeting}
-            canCreate={canManageMeetings}
+            onCreate={() => onOpenAdminModal?.("meeting")}
+            onEdit={(meeting) => onEditMeeting?.(meeting)}
+            onUpdateMom={(meeting, value) =>
+              onUpdateEventMom?.(meeting.id, value)
+            }
+            canCreate={canCreateMeeting}
             canEdit={canManageMeetings}
           />
         </section>
@@ -676,7 +619,9 @@ export default function Dashboard({
                   <MeetingCard
                     key={meeting.id}
                     meeting={meeting}
-                    onUploadMom={uploadMom}
+                    onUpdateMom={(item, value) =>
+                      onUpdateEventMom?.(item.id, value)
+                    }
                   />
                 ))
               ) : (
@@ -728,53 +673,38 @@ export default function Dashboard({
             </div>
           </section>
         )}
-        {!isFaculty && (
-          <section className="panel past-meetings-panel">
-            <div className="panel-heading">
-              <div>
-                <span className="minimal-kicker">YOUR HISTORY</span>
-                <h2>Past Meetings</h2>
-              </div>
-              <span className="past-meeting-count">
-                {pastMine.length} meetings
-              </span>
+        <section className="panel past-meetings-panel">
+          <div className="panel-heading">
+            <div>
+              <span className="minimal-kicker">YOUR HISTORY</span>
+              <h2>Past Meetings</h2>
             </div>
-            <div
-              className="past-meetings-scroll"
-              onScroll={(event) => {
-                const el = event.currentTarget;
-                if (el.scrollTop + el.clientHeight >= el.scrollHeight - 30)
-                  setVisiblePastCount((count) =>
-                    Math.min(count + 8, pastMine.length),
-                  );
-              }}
-            >
-              {pastVisible.length ? (
-                pastVisible.map((meeting) => (
-                  <MeetingCard key={meeting.id} meeting={meeting} />
-                ))
-              ) : (
-                <p className="dashboard-empty">
-                  Your past meetings will appear here.
-                </p>
-              )}
-            </div>
-          </section>
-        )}
+            <span className="past-meeting-count">
+              {pastMine.length} meetings
+            </span>
+          </div>
+          <div
+            className="past-meetings-scroll"
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              if (el.scrollTop + el.clientHeight >= el.scrollHeight - 30)
+                setVisiblePastCount((count) =>
+                  Math.min(count + 8, pastMine.length),
+                );
+            }}
+          >
+            {pastVisible.length ? (
+              pastVisible.map((meeting) => (
+                <MeetingCard key={meeting.id} meeting={meeting} />
+              ))
+            ) : (
+              <p className="dashboard-empty">
+                Your past meetings will appear here.
+              </p>
+            )}
+          </div>
+        </section>
       </main>
-
-      {(showCreateModal || editingMeeting) && (
-        <CreateMeetingModal
-          user={user}
-          role={role}
-          meeting={editingMeeting}
-          onClose={() => {
-            setShowCreateModal(false);
-            setEditingMeeting(null);
-          }}
-          onCreate={saveMeeting}
-        />
-      )}
     </div>
   );
 }

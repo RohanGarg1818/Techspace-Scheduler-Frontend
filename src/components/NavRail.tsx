@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   CalendarDays,
   ClipboardList,
+  Users,
   Bell,
   Sun,
   Moon,
@@ -24,11 +25,12 @@ import {
   CurrentUser,
   NavSection,
   ThemeMode,
-  UserRole,
 } from "../types/calendar";
 import { CLUB_THEME_TOKENS, ThemePalette } from "../theme/calendarTheme";
 import { formatTimeRange } from "../utils/dateUtils";
 import { canAccessAdminControls, ROLE_LABELS } from "../utils/permissions";
+import { KeyRound, Eye, EyeOff } from "lucide-react";
+import { apiFetch } from "../services/apiClient";
 
 export interface NavRailProps {
   theme: ThemeMode;
@@ -36,7 +38,6 @@ export interface NavRailProps {
   activeNav: NavSection;
   onSelectNav: (nav: NavSection) => void;
   currentUser: CurrentUser;
-  onSelectDemoRole: (role: UserRole) => void;
   onToggleTheme: () => void;
   todayEvents: CalendarEvent[];
   clubs: ClubInfo[];
@@ -59,14 +60,7 @@ const RAIL_ITEMS: {
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "meets", label: "All Meets", icon: ClipboardList },
-];
-
-const DEMO_ROLE_OPTIONS: UserRole[] = [
-  "ob",
-  "team_lead",
-  "faculty",
-  "executive",
-  "member",
+  { id: "users", label: "Management Portal", icon: Users },
 ];
 
 export const NavRail: React.FC<NavRailProps> = ({
@@ -75,7 +69,6 @@ export const NavRail: React.FC<NavRailProps> = ({
   activeNav,
   onSelectNav,
   currentUser,
-  onSelectDemoRole,
   onToggleTheme,
   todayEvents,
   clubs,
@@ -89,10 +82,24 @@ export const NavRail: React.FC<NavRailProps> = ({
   onOpenNotificationDate,
   onLogout,
 }) => {
+  const visibleRailItems = RAIL_ITEMS.filter(
+    (item) => item.id !== "users" || currentUser.role === "faculty",
+  );
   const [openPopover, setOpenPopover] = useState<"bell" | "profile" | null>(
     null,
   );
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -167,6 +174,47 @@ export const NavRail: React.FC<NavRailProps> = ({
     notifications.filter((n) => !n.read).length + visibleAnnouncements.length;
   const hasUnread = unreadNotificationCount > 0 || todayEvents.length > 0;
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMessage("");
+    setPasswordError(false);
+
+    if (newPassword.length < 8) {
+      setPasswordError(true);
+      setPasswordMessage("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError(true);
+      setPasswordMessage("New passwords do not match.");
+      return;
+    }
+
+    try {
+      setPasswordLoading(true);
+
+      await apiFetch("/api/v1/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      setPasswordMessage("Password changed successfully. Please log in again.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      setTimeout(() => onLogout(), 1500);
+    } catch (error) {
+      setPasswordError(true);
+      setPasswordMessage(
+        error instanceof Error ? error.message : "Failed to change password.",
+      );
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -192,7 +240,7 @@ export const NavRail: React.FC<NavRailProps> = ({
       >
         {/* Top: Main Navigation Items */}
         <div className="flex flex-col items-center gap-2 w-full">
-          {RAIL_ITEMS.map((item) => {
+          {visibleRailItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeNav === item.id;
 
@@ -428,7 +476,7 @@ export const NavRail: React.FC<NavRailProps> = ({
           boxShadow: palette.cardShadow,
         }}
       >
-        {RAIL_ITEMS.map((item) => {
+        {visibleRailItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeNav === item.id;
           return (
@@ -879,43 +927,98 @@ export const NavRail: React.FC<NavRailProps> = ({
             className="mt-3 pt-2.5 border-t"
             style={{ borderColor: palette.border }}
           >
-            <p
-              className="text-[10.5px] font-semibold uppercase tracking-wider mb-1.5"
-              style={{ color: palette.textMuted }}
+            <button
+              type="button"
+              onClick={() => {
+                setShowPasswordForm((prev) => !prev);
+                setPasswordMessage("");
+              }}
+              className="w-full flex items-center justify-between text-left py-1 cursor-pointer"
+              style={{ color: palette.textPrimary }}
             >
-              Demo Role Preview (UI Only)
-            </p>
-            <div className="space-y-1">
-              {DEMO_ROLE_OPTIONS.map((roleKey) => {
-                const isSelected = currentUser.role === roleKey;
-                return (
-                  <button
-                    key={roleKey}
-                    type="button"
-                    onClick={() => onSelectDemoRole(roleKey)}
-                    className="w-full text-left px-2.5 py-1.5 rounded-[8px] text-[12px] font-medium flex items-center justify-between cursor-pointer transition-colors"
-                    style={{
-                      backgroundColor: isSelected
-                        ? palette.navActiveBg
-                        : "transparent",
-                      color: isSelected
-                        ? palette.textPrimary
-                        : palette.textSecondary,
-                    }}
+              <span className="flex items-center gap-2 text-[12px] font-semibold">
+                <KeyRound className="w-3.5 h-3.5" />
+                Change Password
+              </span>
+              <span
+                className="text-[11px]"
+                style={{ color: palette.textMuted }}
+              >
+                {showPasswordForm ? "Close" : "Change"}
+              </span>
+            </button>
+
+            {showPasswordForm && (
+              <form
+                onSubmit={handleChangePassword}
+                className="mt-3 space-y-2.5"
+              >
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Current password"
+                  className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none"
+                  style={{
+                    backgroundColor: palette.surfaceSubtle,
+                    borderColor: palette.border,
+                    color: palette.textPrimary,
+                  }}
+                />
+
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  maxLength={100}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password (min. 8 characters)"
+                  className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none"
+                  style={{
+                    backgroundColor: palette.surfaceSubtle,
+                    borderColor: palette.border,
+                    color: palette.textPrimary,
+                  }}
+                />
+
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="w-full rounded-lg border px-3 py-2 text-[12px] outline-none"
+                  style={{
+                    backgroundColor: palette.surfaceSubtle,
+                    borderColor: palette.border,
+                    color: palette.textPrimary,
+                  }}
+                />
+
+                {passwordMessage && (
+                  <p
+                    className="text-[11px]"
+                    style={{ color: passwordError ? "#dc2626" : "#16a34a" }}
                   >
-                    <span>{ROLE_LABELS[roleKey]}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                );
-              })}
-            </div>
-            <p
-              className="text-[10px] mt-2 leading-snug"
-              style={{ color: palette.textMuted }}
-            >
-              Demo permissions only; backend endpoints enforce real
-              authorization.
-            </p>
+                    {passwordMessage}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="w-full rounded-lg py-2 text-[12px] font-semibold disabled:opacity-50"
+                  style={{
+                    backgroundColor: palette.navActiveBg,
+                    color: palette.textPrimary,
+                  }}
+                >
+                  {passwordLoading ? "Updating..." : "Update Password"}
+                </button>
+              </form>
+            )}
           </div>
 
           <div
