@@ -127,11 +127,11 @@ export const MonthView: React.FC<MonthViewProps> = ({
   return (
     <div className="flex flex-col flex-1 min-h-0 select-none">
       {/* Weekday Header */}
-      <div className="grid grid-cols-7 mb-1.5">
+      <div className="grid grid-cols-7 mb-1 sm:mb-1.5 shrink-0">
         {WEEKDAY_HEADERS.map((day) => (
           <div
             key={day}
-            className="py-2 text-center text-[11px] font-semibold tracking-[0.06em]"
+            className="py-1 sm:py-1.5 text-center text-[10px] sm:text-[11px] font-semibold tracking-[0.06em]"
             style={{ color: palette.textMuted }}
           >
             {day}
@@ -141,10 +141,10 @@ export const MonthView: React.FC<MonthViewProps> = ({
 
       {/* Month Grid */}
       <div
-        className="grid grid-cols-7 flex-1 rounded-[14px] border overflow-hidden"
+        className="grid grid-cols-7 flex-1 min-h-0 rounded-[12px] sm:rounded-[14px] border overflow-hidden"
         style={{
           borderColor: palette.gridLine,
-          gridTemplateRows: `repeat(${rowsCount}, minmax(94px, 1fr))`,
+          gridTemplateRows: `repeat(${rowsCount}, minmax(0, 1fr))`, minHeight: 0,
         }}
       >
         {days.map((cell, idx) => {
@@ -215,7 +215,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
                   onSelectDate(cell.dateKey);
                 }
               }}
-              className="ts-calendar-cell min-w-0 overflow-hidden p-1 sm:p-2 flex flex-col text-left cursor-pointer focus:outline-none"
+              className="ts-calendar-cell min-w-0 overflow-hidden p-1 sm:p-1.5 xl:p-2 flex flex-col text-left cursor-pointer focus:outline-none"
               data-selected={
                 isSelected || isRangeAnchor || isDragSelected ? 'true' : 'false'
               }
@@ -229,9 +229,9 @@ export const MonthView: React.FC<MonthViewProps> = ({
               }}
             >
               {/* Date Number + Minimal Clash / Busy Density Indicators */}
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-0.5 sm:mb-1 shrink-0">
                 <span
-                  className="inline-flex items-center justify-center w-6 h-6 rounded-[6px] text-[12px] tabular-nums transition-colors duration-150"
+                  className="inline-flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-[5px] sm:rounded-[6px] text-[10.5px] sm:text-[12px] tabular-nums transition-colors duration-150"
                   style={{
                     backgroundColor:
                       isSelected || isRangeAnchor
@@ -325,7 +325,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
               )}
 
               {/* Confirmed Event Indicators (visually more prominent than tentative holds) */}
-              <div className="space-y-1 min-w-0">
+              <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1 min-h-0 overflow-y-auto ts-scroll">
                 {visibleEvents.map((ev) => {
                   const clubTokens = CLUB_THEME_TOKENS[theme][ev.clubId];
                   const isEventSelected = selectedEventId === ev.id;
@@ -338,7 +338,7 @@ export const MonthView: React.FC<MonthViewProps> = ({
                         e.stopPropagation();
                         onSelectEvent(ev);
                       }}
-                      className="ts-event-chip w-full text-left truncate px-1.5 py-[2px] rounded-[4px] text-[10.5px] leading-[1.35] font-medium border tabular-nums cursor-pointer"
+                      className="ts-event-chip w-full text-left truncate px-1 sm:px-1.5 py-[1px] sm:py-[1.5px] rounded-[3px] sm:rounded-[4px] text-[9.5px] sm:text-[10.5px] leading-[1.3] font-medium border tabular-nums cursor-pointer"
                       style={{
                         backgroundColor: clubTokens.pillBg,
                         borderColor: isEventSelected

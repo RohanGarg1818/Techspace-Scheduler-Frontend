@@ -114,7 +114,7 @@ export const THEME_TOKENS: Record<ThemeMode, ThemePalette> = {
   },
 };
 
-export const CLUB_THEME_TOKENS: Record<ThemeMode, Record<ClubId, ClubThemeTokens>> = {
+const RAW_CLUB_THEME_TOKENS: Record<ThemeMode, Record<ClubId, ClubThemeTokens>> = {
   light: {
     'core-team': {
       dot: '#2D8A76',
@@ -254,4 +254,21 @@ export const CLUB_THEME_TOKENS: Record<ThemeMode, Record<ClubId, ClubThemeTokens
       filterRowActiveBorder: '#523240',
     },
   },
+};
+
+function createSafeClubTokens(theme: ThemeMode) {
+  const tokens = RAW_CLUB_THEME_TOKENS[theme];
+  return new Proxy(tokens, {
+    get(target, prop: string | symbol) {
+      if (typeof prop === 'string' && prop in target) {
+        return target[prop as ClubId];
+      }
+      return target['core-team'];
+    },
+  });
+}
+
+export const CLUB_THEME_TOKENS: Record<ThemeMode, Record<ClubId, ClubThemeTokens>> = {
+  light: createSafeClubTokens('light'),
+  dark: createSafeClubTokens('dark'),
 };

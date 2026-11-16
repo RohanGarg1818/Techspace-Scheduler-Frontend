@@ -119,17 +119,23 @@ export const EventModal: React.FC<EventModalProps> = ({
   );
   const authorizedAnnouncementClubs =
     currentUser.role === 'team_lead'
-      ? authorizedClubs.filter((c) => currentUser.authorizedTeams.includes(c.id))
-      : authorizedClubs.filter((c) => c.category === 'announcement');
+      ? authorizedClubs.filter(
+          (c) =>
+            currentUser.authorizedTeams.includes(c.id) &&
+            c.id !== 'announcements'
+        )
+      : currentUser.role === 'ob' || currentUser.role === 'faculty'
+        ? authorizedClubs
+        : [];
   const defaultMeetingClub =
     authorizedMeetingClubs[0] ??
     clubs.find((c) => c.category !== 'announcement') ??
     clubs[0];
   const defaultAnnouncementClub =
-    authorizedAnnouncementClubs[0] ??
     (currentUser.role === 'team_lead'
-      ? authorizedClubs[0]
+      ? authorizedAnnouncementClubs[0]
       : clubs.find((c) => c.category === 'announcement')) ??
+    authorizedAnnouncementClubs[0] ??
     clubs[0];
 
   const initialMeetingType: MeetingType =
@@ -243,6 +249,11 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [ghostActionTaken, setGhostActionTaken] = useState<
     'none' | 'kept' | 'coordinated'
   >('none');
+  const [tentativeConflictWarning, setTentativeConflictWarning] = useState<{
+    message: string;
+    regularClashes?: any[];
+    tentativeClashes?: any[];
+  } | null>(null);
 
   useEffect(() => {
     if (pickedCalendarRange) {
@@ -270,6 +281,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   // Clear stale clash state when date or times change
   useEffect(() => {
     setClashResult(null);
+    setTentativeConflictWarning(null);
   }, [date, startTime, endTime, clubId]);
 
   const handleClubChange = (newClubId: ClubId) => {
@@ -346,7 +358,7 @@ export const EventModal: React.FC<EventModalProps> = ({
     return null;
   };
 
-  const handleConfirmMeetingSubmit = async (confirmOverride = false) => {
+  const handleConfirmMeetingSubmit = async (confirmOverride = false, force = false) => {
     setFormError(null);
     const validationError = validateMeetingInputs();
     if (validationError) {
@@ -357,7 +369,7 @@ export const EventModal: React.FC<EventModalProps> = ({
     setIsSubmitting(true);
     try {
       // 1. Check real time clash via POST /api/v1/meetings/check-clash contract
-      if (!confirmOverride) {
+      if (!confirmOverride && !force) {
         const clash = await checkMeetingClash(
           {
             id: editingEvent?.id,
@@ -378,7 +390,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       }
 
       // 2. If tentative overlap exists and user hasn't acknowledged Keep/Coordinated, pause for decision
-      if (ghostOverlaps.length > 0 && ghostActionTaken === 'none') {
+      if (!force && ghostOverlaps.length > 0 && ghostActionTaken === 'none') {
         setFormError(
           'Review the potential tentative hold overlap below and choose Keep Schedule, Reschedule, or Mark Coordinated.'
         );
@@ -398,6 +410,7 @@ export const EventModal: React.FC<EventModalProps> = ({
         attendance,
         description: description.trim() || undefined,
         confirmOverride,
+        force,
       };
 
       await onSubmitMeeting(
@@ -412,11 +425,45 @@ export const EventModal: React.FC<EventModalProps> = ({
           : undefined
       );
       onClose();
-    } catch (err) {
-      if (err instanceof ApiServiceError) {
+    } catch (err: any) {
+      // Check if backend reported a 409 MEETING_CLASH with conflict details
+      const errorData = err?.data;
+      const regularClashes = errorData?.regularClashes || errorData?.clashes || [];
+      const tentativeClashes = errorData?.tentativeClashes || [];
+
+      if (err?.status === 409 && (err?.code === 'MEETING_CLASH' || err?.message?.includes('overlaps'))) {
+        // If there are regular (confirmed) clashes, block completely and do not allow Save Anyway
+        if (regularClashes.length > 0) {
+          setTentativeConflictWarning(null);
+          setClashResult({
+            hasClash: true,
+            conflicts: regularClashes.map((c: any) => ({
+              id: c.id,
+              title: c.topic || c.title || 'Meeting',
+              date: c.date,
+              startTime: c.startTime,
+              endTime: c.endTime,
+              location: c.location || '',
+              clubId: (c.team?.id || 'core-team') as ClubId,
+            })),
+          });
+          setFormError('Cannot save: Conflicts with confirmed meeting(s). Confirmed clashes cannot be overridden.');
+        } else if (tentativeClashes.length > 0 || err?.message?.includes('tentative')) {
+          // Tentative-only conflicts allow user to Save Anyway with force=true
+          setClashResult(null);
+          setTentativeConflictWarning({
+            message: err.message || 'This meeting overlaps with tentative meeting(s).',
+            regularClashes,
+            tentativeClashes,
+          });
+          setFormError(null);
+        } else {
+          setFormError(err.message);
+        }
+      } else if (err instanceof ApiServiceError) {
         setFormError(err.message);
       } else {
-        setFormError('Unable to save meeting. Please try again.');
+        setFormError(err?.message || 'Unable to save meeting. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
@@ -495,11 +542,12 @@ export const EventModal: React.FC<EventModalProps> = ({
         content: announcementContent.trim(),
       });
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       setFormError(
-        err instanceof ApiServiceError
+        err?.message ||
+        (err instanceof ApiServiceError
           ? err.message
-          : 'Unable to publish announcement.'
+          : 'Unable to publish announcement.')
       );
     } finally {
       setIsSubmitting(false);
@@ -783,11 +831,6 @@ export const EventModal: React.FC<EventModalProps> = ({
                 style={inputStyle}
               />
             </div>
-
-            <p className="text-[11px]" style={{ color: palette.textMuted }}>
-              Demo mode: Announcements are stored locally for this session until a
-              backend announcement contract is configured.
-            </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
@@ -1134,6 +1177,93 @@ export const EventModal: React.FC<EventModalProps> = ({
                     }}
                   >
                     Confirm Despite Clash
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* WARNING A2: Backend Tentative Meeting Conflict Warning Dialog */}
+            {tentativeConflictWarning && (
+              <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="tentative-conflict-title"
+                className="p-3.5 rounded-[12px] border space-y-2.5"
+                style={{
+                  backgroundColor: palette.surfaceElevated,
+                  borderColor: palette.accentBg,
+                }}
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle
+                    className="w-4 h-4 shrink-0 mt-0.5"
+                    style={{ color: palette.accentBg }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      id="tentative-conflict-title"
+                      className="text-[12.5px] font-bold"
+                      style={{ color: palette.textPrimary }}
+                    >
+                      Tentative Meeting Conflict
+                    </p>
+                    <p
+                      className="text-[11.5px] mt-0.5"
+                      style={{ color: palette.textSecondary }}
+                    >
+                      {tentativeConflictWarning.message}
+                    </p>
+                    {tentativeConflictWarning.tentativeClashes && tentativeConflictWarning.tentativeClashes.length > 0 && (
+                      <ul className="mt-1.5 space-y-1">
+                        {tentativeConflictWarning.tentativeClashes.map((t: any) => (
+                          <li
+                            key={t.id}
+                            className="text-[11.5px] px-2 py-1 rounded-[7px] border"
+                            style={{
+                              backgroundColor: palette.surfaceSubtle,
+                              borderColor: palette.border,
+                              color: palette.textPrimary,
+                            }}
+                          >
+                            <span className="font-semibold">{t.topic || 'Tentative Meeting'}</span>
+                            {' · '}
+                            <span className="tabular-nums">
+                              {t.startDate}{t.endDate && t.endDate !== t.startDate ? ` to ${t.endDate}` : ''}
+                              {t.startTime && t.endTime ? ` (${formatTimeRange(t.startTime, t.endTime)})` : ' (All-day)'}
+                            </span>
+                            {t.team?.name && ` · ${t.team.name}`}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-1 border-t" style={{ borderColor: palette.border }}>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setTentativeConflictWarning(null);
+                    }}
+                    className="px-3 py-1 rounded-[8px] text-[11.5px] font-semibold cursor-pointer"
+                    style={{
+                      backgroundColor: palette.buttonMutedBg,
+                      color: palette.textPrimary,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void handleConfirmMeetingSubmit(false, true)}
+                    className="px-3 py-1 rounded-[8px] text-[11.5px] font-semibold cursor-pointer"
+                    style={{
+                      backgroundColor: palette.accentBg,
+                      color: palette.accentText,
+                    }}
+                  >
+                    Save Anyway
                   </button>
                 </div>
               </div>

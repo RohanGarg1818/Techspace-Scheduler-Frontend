@@ -1,4 +1,5 @@
 import {
+  Announcement,
   CalendarEvent,
   ClubId,
   ClubInfo,
@@ -93,35 +94,63 @@ export function canAccessAdminControls(user: CurrentUser): boolean {
   );
 }
 
+export function canViewEverything(_user: CurrentUser): boolean {
+  return true;
+}
+
+export function canManageUsers(user: CurrentUser): boolean {
+  return user.role === "faculty";
+}
+
+export function canManageTeams(user: CurrentUser): boolean {
+  return user.role === "faculty";
+}
+
+export function canChangeOwnPassword(_user: CurrentUser): boolean {
+  return true;
+}
+
 export function canCreateAnyMeeting(user: CurrentUser): boolean {
   return user.role === "ob" || user.role === "faculty";
+}
+
+export function canCreateMeeting(
+  user: CurrentUser,
+  clubId?: ClubId,
+): boolean {
+  if (user.role === "ob" || user.role === "faculty") {
+    return true;
+  }
+  if (user.role === "team_lead") {
+    if (clubId) {
+      return (
+        clubId !== "announcements" && user.authorizedTeams.includes(clubId)
+      );
+    }
+    return user.authorizedTeams.some((t) => t !== "announcements");
+  }
+  return false;
 }
 
 export function canCreateMeetingForTeam(
   user: CurrentUser,
   clubId: ClubId,
 ): boolean {
-  if (
-    user.role === "ob" ||
-    user.role === "faculty" ||
-    user.role === "team_lead"
-  ) {
-    return user.authorizedTeams.includes(clubId);
-  }
-  return false;
+  return canCreateMeeting(user, clubId);
 }
 
 export function canEditMeeting(
   user: CurrentUser,
   event: CalendarEvent,
 ): boolean {
-  if (user.role === "ob" || user.role === "faculty") {
-    return user.authorizedTeams.includes(event.clubId);
+  if (user.role === "faculty") {
+    return true;
   }
-  if (user.role === "team_lead") {
+  if (user.role === "ob" || user.role === "team_lead") {
     const isCreator =
-      event.createdById === user.id || event.organizer === user.name;
-    return isCreator && user.authorizedTeams.includes(event.clubId);
+      (Boolean(event.createdById) && event.createdById === user.id) ||
+      event.organizer === user.name;
+    return isCreator;
   }
   return false;
 }
@@ -133,6 +162,10 @@ export function canCancelMeeting(
   return canEditMeeting(user, event);
 }
 
+export function canPermanentlyDeleteMeeting(user: CurrentUser): boolean {
+  return user.role === "ob" || user.role === "faculty";
+}
+
 export function canPublishAnnouncement(
   user: CurrentUser,
   clubId?: ClubId,
@@ -142,11 +175,37 @@ export function canPublishAnnouncement(
   }
   if (user.role === "team_lead") {
     if (clubId) {
-      return user.authorizedTeams.includes(clubId);
+      return (
+        clubId !== "announcements" && user.authorizedTeams.includes(clubId)
+      );
     }
-    return user.authorizedTeams.length > 0;
+    return user.authorizedTeams.some((t) => t !== "announcements");
   }
   return false;
+}
+
+export function canEditAnnouncement(
+  user: CurrentUser,
+  announcement: Announcement,
+): boolean {
+  if (user.role === "faculty") {
+    return true;
+  }
+  if (user.role === "ob" || user.role === "team_lead") {
+    const isCreator =
+      (Boolean(announcement.createdById) &&
+        announcement.createdById === user.id) ||
+      announcement.publisherName === user.name;
+    return isCreator;
+  }
+  return false;
+}
+
+export function canDeleteAnnouncement(
+  user: CurrentUser,
+  announcement: Announcement,
+): boolean {
+  return canEditAnnouncement(user, announcement);
 }
 
 export function canCreateGhostRange(
@@ -168,36 +227,28 @@ export function canManageGhostRange(
   user: CurrentUser,
   hold: GhostRange,
 ): boolean {
-  if (user.role === "ob" || user.role === "faculty") {
-    return user.authorizedTeams.includes(hold.clubId);
+  if (user.role === "faculty") {
+    return true;
   }
-  if (user.role === "team_lead") {
+  if (user.role === "ob" || user.role === "team_lead") {
     return (
-      user.authorizedTeams.includes(hold.clubId) &&
-      (hold.createdById === user.id || hold.createdByName === user.name)
+      (Boolean(hold.createdById) && hold.createdById === user.id) ||
+      hold.createdByName === user.name
     );
   }
   return false;
 }
 
 export function canManageMom(user: CurrentUser, event: CalendarEvent): boolean {
-  if (user.role === "ob" || user.role === "faculty") {
-    return user.authorizedTeams.includes(event.clubId);
-  }
-  if (user.role === "team_lead") {
-    return user.authorizedTeams.includes(event.clubId);
-  }
-  return false;
+  return canEditMeeting(user, event);
 }
 
 export function canViewPrivateDetails(
-  user: CurrentUser,
-  clubId: ClubId,
-  isPrivate?: boolean,
+  _user: CurrentUser,
+  _clubId: ClubId,
+  _isPrivate?: boolean,
 ): boolean {
-  if (!isPrivate) return true;
-  if (user.role === "ob" || user.role === "faculty") return true;
-  return user.authorizedTeams.includes(clubId);
+  return true;
 }
 
 export function getAuthorizedClubs(user: CurrentUser): ClubId[] {

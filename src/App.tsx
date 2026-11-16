@@ -1,12 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  ArrowLeft,
   CheckCircle2,
   X,
   SlidersHorizontal,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   Announcement,
   AppNotification,
@@ -18,14 +17,14 @@ import {
   NavSection,
   ThemeMode,
   UserRole,
-} from './types/calendar';
+} from "./types/calendar";
 import {
   CLUBS,
   INITIAL_ANNOUNCEMENTS,
   INITIAL_EVENTS,
   INITIAL_GHOST_RANGES,
-} from './data/mockEvents';
-import { THEME_TOKENS } from './theme/calendarTheme';
+} from "./data/mockEvents";
+import { THEME_TOKENS } from "./theme/calendarTheme";
 import {
   addDays,
   addMonths,
@@ -35,8 +34,8 @@ import {
   getTodayDateKey,
   parseDateKey,
   parseTimeToMinutes,
-} from './utils/dateUtils';
-import { isDateInRange } from './utils/conflictUtils';
+} from "./utils/dateUtils";
+import { isDateInRange } from "./utils/conflictUtils";
 import {
   canAccessAdminControls,
   canCancelMeeting,
@@ -45,7 +44,7 @@ import {
   canManageMom,
   canViewPrivateDetails,
   DEMO_USERS,
-} from './utils/permissions';
+} from "./utils/permissions";
 import {
   addDeduplicatedNotification,
   cancelMeeting,
@@ -54,41 +53,58 @@ import {
   CreateGhostRangePayload,
   createMeeting,
   CreateMeetingPayload,
+  deleteAnnouncement,
+  fetchAnnouncements,
+  fetchMeetings,
+  isBackendConfigured,
+  publishAnnouncement,
   publishAnnouncementDemo,
   removeGhostRangeDemo,
+  updateAnnouncement,
   updateGhostRangeDemo,
   updateMeeting,
-} from './services/calendarService';
-import { TopNavBar } from './components/TopNavBar';
-import { NavRail } from './components/NavRail';
-import { LeftPanel } from './components/LeftPanel';
-import { MonthView } from './components/MonthView';
-import { WeekView } from './components/WeekView';
-import { DayView } from './components/DayView';
-import { RightPanel } from './components/RightPanel';
+} from "./services/calendarService";
+import { NavRail } from "./components/NavRail";
+import { LeftPanel } from "./components/LeftPanel";
+import { MonthView } from "./components/MonthView";
+import { WeekView } from "./components/WeekView";
+import { DayView } from "./components/DayView";
+import { RightPanel } from "./components/RightPanel";
 import {
   CalendarDragSelection,
   EventModal,
   SchedulingKind,
-} from './components/EventModal';
-import { SideNavDrawer } from './components/SideNavDrawer';
-import { AllMeetsView } from './components/AllMeetsView';
-import Dashboard from './pages/Dashboard';
-import { users, meetings as initialDashboardMeetings } from './data/dashboardData';
+} from "./components/EventModal";
+import { AllMeetsView } from "./components/AllMeetsView";
+import Dashboard from "./pages/Dashboard";
+import { LoginPage } from "./components/LoginPage";
+import { LumaSpin } from "./components/ui/luma-spin";
+import { SpringSegmentedControl } from "./components/ui/SpringSegmentedControl";
+import { getCurrentUser, logout, type AuthUser } from "./services/authService";
+import { getAuthToken } from "./services/apiClient";
+import {
+  users,
+  meetings as initialDashboardMeetings,
+} from "./data/dashboardData";
+function formatDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 function BackgroundDecor({ theme }: { theme: ThemeMode }) {
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
   const primaryClass = isDark
-    ? 'text-[#343438] opacity-40'
-    : 'text-[#233252]/75';
-  const secondaryStrokeColor = isDark ? '#29292D' : 'currentColor';
-  const starClass = isDark
-    ? 'text-[#343438] opacity-35'
-    : 'text-[#233252]/80';
+    ? "text-[#343438] opacity-40"
+    : "text-[#233252]/75";
+  const secondaryStrokeColor = isDark ? "#29292D" : "currentColor";
+  const starClass = isDark ? "text-[#343438] opacity-35" : "text-[#233252]/80";
   const sparkleClass = isDark
-    ? 'text-[#29292D] opacity-35'
-    : 'text-[#EAB348]/85';
+    ? "text-[#29292D] opacity-35"
+    : "text-[#EAB348]/85";
 
   return (
     <div
@@ -101,7 +117,13 @@ function BackgroundDecor({ theme }: { theme: ThemeMode }) {
         viewBox="0 0 64 64"
         fill="none"
       >
-        <circle cx="32" cy="32" r="11" stroke="currentColor" strokeWidth="1.5" />
+        <circle
+          cx="32"
+          cy="32"
+          r="11"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
         <ellipse
           cx="32"
           cy="32"
@@ -134,7 +156,14 @@ function BackgroundDecor({ theme }: { theme: ThemeMode }) {
         fill="none"
       >
         <circle cx="24" cy="24" r="2.3" fill="currentColor" />
-        <ellipse cx="24" cy="24" rx="16" ry="6.2" stroke="currentColor" strokeWidth="1.4" />
+        <ellipse
+          cx="24"
+          cy="24"
+          rx="16"
+          ry="6.2"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
         <ellipse
           cx="24"
           cy="24"
@@ -175,7 +204,13 @@ function BackgroundDecor({ theme }: { theme: ThemeMode }) {
         viewBox="0 0 64 64"
         fill="none"
       >
-        <circle cx="32" cy="32" r="10.5" stroke="currentColor" strokeWidth="1.5" />
+        <circle
+          cx="32"
+          cy="32"
+          r="10.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
         <ellipse
           cx="32"
           cy="32"
@@ -208,20 +243,95 @@ export function App() {
   const todayDateKey = useMemo(() => getTodayDateKey(), []);
   const initialDate = useMemo(() => parseDateKey(todayDateKey), [todayDateKey]);
 
-  const [theme, setTheme] = useState<ThemeMode>('light');
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
-  const [activeNav, setActiveNav] = useState<NavSection>('calendar');
+  const [theme, setTheme] = useState<ThemeMode>(() =>
+    localStorage.getItem("techspace-theme") === "dark" ? "dark" : "light",
+  );
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  // Demo RBAC user state (UI preview only; backend enforces production authorization)
-  const [currentUser, setCurrentUser] = useState<CurrentUser>(DEMO_USERS.ob);
-  const [dashboardMeetings, setDashboardMeetings] = useState(initialDashboardMeetings);
+  useEffect(() => {
+    let active = true;
+
+    async function restoreSession() {
+      try {
+        if (!getAuthToken()) return;
+        const user = await getCurrentUser();
+        if (active) setAuthUser(user);
+      } catch (error) {
+        console.error("Session verification failed:", error);
+        if (active) logout();
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    }
+
+    void restoreSession();
+
+    const handleExpiredSession = () => setAuthUser(null);
+    window.addEventListener("techspace:session-expired", handleExpiredSession);
+    return () => {
+      active = false;
+      window.removeEventListener(
+        "techspace:session-expired",
+        handleExpiredSession,
+      );
+    };
+  }, []);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
+  const [activeNav, setActiveNav] = useState<NavSection>(() => {
+    const savedPage = sessionStorage.getItem("techspace-active-page");
+
+    return savedPage === "dashboard" || savedPage === "calendar"
+      ? savedPage
+      : "dashboard";
+  });
+  useEffect(() => {
+    sessionStorage.setItem("techspace-active-page", activeNav);
+  }, [activeNav]);
+
+  // Map backend identity to the existing Calendar UI's user shape.
+  // Team UUIDs must be mapped to actual club IDs when teams API is integrated.
+  const currentUser: CurrentUser = useMemo(() => {
+    if (!authUser) {
+      return { id: "", name: "", role: "member", authorizedTeams: [] };
+    }
+    const teamIds = authUser.teams
+      .filter(
+        (team) =>
+          authUser.role !== "team_lead" ||
+          team.position === "lead" ||
+          team.position === "colead",
+      )
+      .map((team) => {
+        const match = CLUBS.find(
+          (club) => club.name.toLowerCase() === team.teamName.toLowerCase(),
+        );
+        return match?.id;
+      })
+      .filter((id): id is ClubId => Boolean(id));
+
+    return {
+      id: authUser.id,
+      name: authUser.name,
+      role: authUser.role,
+      authorizedTeams:
+        authUser.role === "ob" || authUser.role === "faculty"
+          ? CLUBS.map((club) => club.id)
+          : teamIds,
+    };
+  }, [authUser]);
+  const [dashboardMeetings, setDashboardMeetings] = useState(
+    initialDashboardMeetings,
+  );
 
   const dashboardRole =
-    currentUser === DEMO_USERS.ob ? 'Office Bearer' :
-    currentUser === DEMO_USERS.faculty ? 'Faculty' :
-    currentUser === DEMO_USERS.executive ? 'Executive' :
-    currentUser === DEMO_USERS.team_lead ? 'Team Lead' :
-    'Member';
+    currentUser.role === "ob"
+      ? "Office Bearer"
+      : currentUser.role === "faculty"
+        ? "Faculty"
+        : currentUser.role === "team_lead"
+          ? "Lead"
+          : "Member";
 
   const dashboardUser = {
     ...users[dashboardRole],
@@ -229,9 +339,14 @@ export function App() {
   };
 
   const [events, setEvents] = useState<CalendarEvent[]>(INITIAL_EVENTS);
-  const [ghostRanges, setGhostRanges] = useState<GhostRange[]>(INITIAL_GHOST_RANGES);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(INITIAL_ANNOUNCEMENTS);
-  const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState<string[]>([]);
+  const [ghostRanges, setGhostRanges] =
+    useState<GhostRange[]>(INITIAL_GHOST_RANGES);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(
+    isBackendConfigured ? [] : INITIAL_ANNOUNCEMENTS,
+  );
+  const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState<
+    string[]
+  >([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -239,40 +354,116 @@ export function App() {
 
   // Conditional meetings panel starts CLOSED with no selected date
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-  const [isMeetingsPanelOpen, setIsMeetingsPanelOpen] = useState<boolean>(false);
+  const [isMeetingsPanelOpen, setIsMeetingsPanelOpen] =
+    useState<boolean>(false);
 
-  const [weekAnchorDateKey, setWeekAnchorDateKey] = useState<string>(todayDateKey);
+  const [weekAnchorDateKey, setWeekAnchorDateKey] =
+    useState<string>(todayDateKey);
   const [mainYear, setMainYear] = useState<number>(initialDate.getFullYear());
-  const [mainMonthIndex, setMainMonthIndex] = useState<number>(initialDate.getMonth());
+  const [mainMonthIndex, setMainMonthIndex] = useState<number>(
+    initialDate.getMonth(),
+  );
   const [miniYear, setMiniYear] = useState<number>(initialDate.getFullYear());
-  const [miniMonthIndex, setMiniMonthIndex] = useState<number>(initialDate.getMonth());
+  const [miniMonthIndex, setMiniMonthIndex] = useState<number>(
+    initialDate.getMonth(),
+  );
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
-  const [modalSchedulingKind, setModalSchedulingKind] = useState<SchedulingKind>('confirmed');
+  const [modalSchedulingKind, setModalSchedulingKind] =
+    useState<SchedulingKind>("confirmed");
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-  const [editingGhostRange, setEditingGhostRange] = useState<GhostRange | null>(null);
-  const [convertingGhostRange, setConvertingGhostRange] = useState<GhostRange | null>(null);
-  const [isPickingGhostRange, setIsPickingGhostRange] = useState<boolean>(false);
+  const [editingGhostRange, setEditingGhostRange] = useState<GhostRange | null>(
+    null,
+  );
+  const [convertingGhostRange, setConvertingGhostRange] =
+    useState<GhostRange | null>(null);
+  const [isPickingGhostRange, setIsPickingGhostRange] =
+    useState<boolean>(false);
   const [rangePickStart, setRangePickStart] = useState<string | null>(null);
   const [pickedCalendarRange, setPickedCalendarRange] = useState<{
     startDate: string;
     endDate: string;
   } | null>(null);
-  const [dragSelection, setDragSelection] = useState<CalendarDragSelection | null>(null);
+  const [dragSelection, setDragSelection] =
+    useState<CalendarDragSelection | null>(null);
 
-  const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState<boolean>(false);
   const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState<boolean>(false);
+
+  // View mode options for the spring segmented control
+  const VIEW_MODE_OPTIONS = useMemo(
+    () => [
+      { value: "day" as CalendarViewMode, label: "Day" },
+      { value: "week" as CalendarViewMode, label: "Week" },
+      { value: "month" as CalendarViewMode, label: "Month" },
+    ],
+    [],
+  );
+
+  const handleViewModeChange = useCallback(
+    (mode: CalendarViewMode) => {
+      setViewMode(mode);
+      if (mode === "day" || mode === "week") {
+        setWeekAnchorDateKey(todayDateKey);
+        setSelectedDateKey(null);
+      } else if (mode === "month") {
+        const today = parseDateKey(todayDateKey);
+        setMainYear(today.getFullYear());
+        setMainMonthIndex(today.getMonth());
+        setMiniYear(today.getFullYear());
+        setMiniMonthIndex(today.getMonth());
+      }
+    },
+    [todayDateKey],
+  );
 
   // Sync `.dark` class on <html> for Tailwind v4 `@custom-variant dark`
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
+    if (theme === "dark") {
+      root.classList.add("dark");
     } else {
-      root.classList.remove('dark');
+      root.classList.remove("dark");
     }
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem("techspace-theme", theme);
+  }, [theme]);
+
+  // Load meetings and announcements when backend is configured
+  useEffect(() => {
+    if (!isBackendConfigured || !authUser) return;
+
+    let isMounted = true;
+    // Calculate date window for current view (approx +/- 2 months from main view)
+    const startDate = formatDateKey(new Date(mainYear, mainMonthIndex, 1));
+    const endDate = formatDateKey(new Date(mainYear, mainMonthIndex + 1, 0));
+
+    fetchMeetings(startDate, endDate)
+      .then((backendMeetings) => {
+        if (isMounted) {
+          setEvents(backendMeetings);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch meetings from backend:", err);
+      });
+
+    fetchAnnouncements()
+      .then((backendAnnouncements) => {
+        if (isMounted) {
+          setAnnouncements(backendAnnouncements);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch announcements from backend:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mainYear, mainMonthIndex, authUser]);
 
   // Auto-dismiss transient success toast
   useEffect(() => {
@@ -283,8 +474,8 @@ export function App() {
 
   const palette = THEME_TOKENS[theme];
   const meetingClubs = useMemo(
-    () => CLUBS.filter((c) => c.category !== 'announcement'),
-    []
+    () => CLUBS.filter((c) => c.category !== "announcement"),
+    [],
   );
 
   const isAllClubsSelected =
@@ -303,17 +494,18 @@ export function App() {
 
   const activeLookupDate = selectedDateKey ?? todayDateKey;
 
-  const selectedDayEvents = useMemo(() => {
+  const selectedDayEvents = useMemo(() => { 
     return filteredEvents
       .filter((ev) => ev.date === activeLookupDate)
       .sort(
-        (a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime)
+        (a, b) =>
+          parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime),
       );
   }, [filteredEvents, activeLookupDate]);
 
   const selectedDayGhostRanges = useMemo(() => {
     return filteredGhostRanges.filter((g) =>
-      isDateInRange(activeLookupDate, g.startDate, g.endDate)
+      isDateInRange(activeLookupDate, g.startDate, g.endDate),
     );
   }, [filteredGhostRanges, activeLookupDate]);
 
@@ -321,7 +513,8 @@ export function App() {
     return events
       .filter((ev) => ev.date === todayDateKey)
       .sort(
-        (a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime)
+        (a, b) =>
+          parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime),
       );
   }, [events, todayDateKey]);
 
@@ -330,7 +523,9 @@ export function App() {
       .filter((ev) => ev.date > activeLookupDate)
       .sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
+        return (
+          parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime)
+        );
       });
   }, [filteredEvents, activeLookupDate]);
 
@@ -360,7 +555,7 @@ export function App() {
       setPickedCalendarRange({ startDate, endDate });
       setIsPickingGhostRange(false);
       setRangePickStart(null);
-      setModalSchedulingKind('ghost');
+      setModalSchedulingKind("ghost");
       setIsAdminModalOpen(true);
       return;
     }
@@ -373,7 +568,7 @@ export function App() {
     setMiniYear(parsed.getFullYear());
     setMiniMonthIndex(parsed.getMonth());
     setSelectedEventId(null);
-    setViewMode('day');
+    setViewMode("day");
     setIsMeetingsPanelOpen(false);
   };
 
@@ -387,7 +582,7 @@ export function App() {
     setMiniYear(parsed.getFullYear());
     setMiniMonthIndex(parsed.getMonth());
     setSelectedEventId(null);
-    setViewMode('day');
+    setViewMode("day");
     setIsMeetingsPanelOpen(false);
   };
 
@@ -414,14 +609,14 @@ export function App() {
   };
 
   const handleMainPrev = () => {
-    if (viewMode === 'month') {
+    if (viewMode === "month") {
       const next = addMonths(mainYear, mainMonthIndex, -1);
       setMainYear(next.year);
       setMainMonthIndex(next.monthIndex);
       setMiniYear(next.year);
       setMiniMonthIndex(next.monthIndex);
     } else {
-      const step = viewMode === 'day' ? -1 : -7;
+      const step = viewMode === "day" ? -1 : -7;
       const prevAnchor = addDays(weekAnchorDateKey, step);
       const parsed = parseDateKey(prevAnchor);
       setWeekAnchorDateKey(prevAnchor);
@@ -437,14 +632,14 @@ export function App() {
   };
 
   const handleMainNext = () => {
-    if (viewMode === 'month') {
+    if (viewMode === "month") {
       const next = addMonths(mainYear, mainMonthIndex, 1);
       setMainYear(next.year);
       setMainMonthIndex(next.monthIndex);
       setMiniYear(next.year);
       setMiniMonthIndex(next.monthIndex);
     } else {
-      const step = viewMode === 'day' ? 1 : 7;
+      const step = viewMode === "day" ? 1 : 7;
       const nextAnchor = addDays(weekAnchorDateKey, step);
       const parsed = parseDateKey(nextAnchor);
       setWeekAnchorDateKey(nextAnchor);
@@ -484,8 +679,8 @@ export function App() {
     setMiniMonthIndex(next.monthIndex);
   };
 
-  const handleSelectClubFilter = (clubId: ClubId | 'all') => {
-    if (clubId === 'all') {
+  const handleSelectClubFilter = (clubId: ClubId | "all") => {
+    if (clubId === "all") {
       setSelectedClubFilters([]);
     } else {
       if (isAllClubsSelected) {
@@ -503,7 +698,7 @@ export function App() {
         } else {
           const next = [...selectedClubFilters, clubId];
           setSelectedClubFilters(
-            next.length === meetingClubs.length ? [] : next
+            next.length === meetingClubs.length ? [] : next,
           );
         }
       }
@@ -517,7 +712,7 @@ export function App() {
     setConvertingGhostRange(null);
     setPickedCalendarRange(null);
     setDragSelection(null);
-    setModalSchedulingKind('confirmed');
+    setModalSchedulingKind("confirmed");
     setIsAdminModalOpen(true);
   };
 
@@ -525,29 +720,29 @@ export function App() {
     payload: CreateMeetingPayload,
     editingId?: string,
     convertingGhostId?: string,
-    rangeEndDate?: string
+    rangeEndDate?: string,
   ) => {
     if (editingId) {
       const updated = await updateMeeting(
         { ...payload, id: editingId },
         events,
-        currentUser
+        currentUser,
       );
       setEvents((prev) =>
-        prev.map((ev) => (ev.id === editingId ? updated : ev))
+        prev.map((ev) => (ev.id === editingId ? updated : ev)),
       );
       handleSelectEvent(updated);
       setToastMessage(`Meeting "${updated.title}" updated.`);
       setNotifications((prev) =>
         addDeduplicatedNotification(prev, {
           dedupeKey: `meeting-updated-${updated.id}-${updated.date}-${updated.startTime}`,
-          kind: 'success',
-          title: 'Meeting Updated',
+          kind: "success",
+          title: "Meeting Updated",
           message: `${updated.title} on ${updated.date}`,
           targetDateKey: updated.date,
           targetClubId: updated.clubId,
           isDemoOnly: true,
-        })
+        }),
       );
       return;
     }
@@ -561,7 +756,7 @@ export function App() {
         const created = await createMeeting(
           { ...payload, date: cursor, confirmOverride: true },
           workingEvents,
-          currentUser
+          currentUser,
         );
         createdList.push(created);
         workingEvents = [...workingEvents, created];
@@ -572,7 +767,9 @@ export function App() {
 
       if (convertingGhostId) {
         await removeGhostRangeDemo(convertingGhostId, ghostRanges, currentUser);
-        setGhostRanges((prev) => prev.filter((g) => g.id !== convertingGhostId));
+        setGhostRanges((prev) =>
+          prev.filter((g) => g.id !== convertingGhostId),
+        );
       }
 
       const firstCreated = createdList[0];
@@ -580,18 +777,18 @@ export function App() {
         handleSelectEvent(firstCreated);
       }
       setToastMessage(
-        `Scheduled "${payload.title}" across ${createdList.length} days (${payload.date} – ${rangeEndDate}).`
+        `Scheduled "${payload.title}" across ${createdList.length} days (${payload.date} – ${rangeEndDate}).`,
       );
       setNotifications((prev) =>
         addDeduplicatedNotification(prev, {
           dedupeKey: `meeting-range-${payload.date}-${rangeEndDate}-${payload.startTime}-${payload.title}`,
-          kind: payload.confirmOverride ? 'clash' : 'success',
+          kind: payload.confirmOverride ? "clash" : "success",
           title: `${createdList.length} Meetings Confirmed`,
           message: `${payload.title} (${payload.date} – ${rangeEndDate})`,
           targetDateKey: payload.date,
           targetClubId: payload.clubId,
           isDemoOnly: true,
-        })
+        }),
       );
       return;
     }
@@ -609,15 +806,15 @@ export function App() {
     setNotifications((prev) =>
       addDeduplicatedNotification(prev, {
         dedupeKey: `meeting-created-${created.date}-${created.startTime}-${created.title}`,
-        kind: payload.confirmOverride ? 'clash' : 'success',
+        kind: payload.confirmOverride ? "clash" : "success",
         title: payload.confirmOverride
-          ? 'Meeting Scheduled (Clash Overridden)'
-          : 'Meeting Confirmed',
+          ? "Meeting Scheduled (Clash Overridden)"
+          : "Meeting Confirmed",
         message: `${created.title} on ${created.date}`,
         targetDateKey: created.date,
         targetClubId: created.clubId,
         isDemoOnly: true,
-      })
+      }),
     );
   };
 
@@ -636,13 +833,13 @@ export function App() {
               momUpdatedBy: trimmed ? currentUser.name : undefined,
               momUpdatedAt: trimmed ? updatedAt : undefined,
             }
-          : ev
-      )
+          : ev,
+      ),
     );
     setToastMessage(
       trimmed
         ? `MOM saved for "${target.title}".`
-        : `MOM cleared for "${target.title}".`
+        : `MOM cleared for "${target.title}".`,
     );
   };
 
@@ -660,17 +857,17 @@ export function App() {
 
   const handleSubmitGhostRange = async (
     payload: CreateGhostRangePayload,
-    editingGhostId?: string
+    editingGhostId?: string,
   ) => {
     if (editingGhostId) {
       const updated = await updateGhostRangeDemo(
         editingGhostId,
         payload,
         ghostRanges,
-        currentUser
+        currentUser,
       );
       setGhostRanges((prev) =>
-        prev.map((g) => (g.id === editingGhostId ? updated : g))
+        prev.map((g) => (g.id === editingGhostId ? updated : g)),
       );
       setToastMessage(`Tentative hold "${updated.title}" updated (demo).`);
       return;
@@ -692,43 +889,47 @@ export function App() {
   };
 
   const handleSubmitAnnouncement = async (
-    payload: CreateAnnouncementPayload
+    payload: CreateAnnouncementPayload,
   ) => {
-    const created = await publishAnnouncementDemo(payload, currentUser);
-    setAnnouncements((prev) => [created, ...prev]);
-    setToastMessage(`Announcement "${created.title}" published (demo).`);
+    const created = await publishAnnouncement(payload, currentUser);
+    setAnnouncements((prev) => [
+      created,
+      ...prev.filter((a) => a.id !== created.id),
+    ]);
+    setToastMessage(`Announcement "${created.title}" published.`);
   };
 
   const handleMarkGhostCoordinated = (holdIds: string[]) => {
     setNotifications((prev) =>
       addDeduplicatedNotification(prev, {
-        dedupeKey: `ghost-coord-${holdIds.join(',')}`,
-        kind: 'ghost_overlap',
-        title: 'Overlap Marked Coordinated (Demo)',
-        message: 'Coordinated schedule overlap recorded locally.',
+        dedupeKey: `ghost-coord-${holdIds.join(",")}`,
+        kind: "ghost_overlap",
+        title: "Overlap Marked Coordinated (Demo)",
+        message: "Coordinated schedule overlap recorded locally.",
         targetDateKey: selectedDateKey ?? todayDateKey,
         isDemoOnly: true,
-      })
+      }),
     );
   };
 
-  const handleSelectDemoRole = (role: UserRole) => {
-    setCurrentUser(DEMO_USERS[role]);
-    setIsAdminModalOpen(false);
-    setIsPickingGhostRange(false);
-    setRangePickStart(null);
-    setDragSelection(null);
-    setToastMessage(`Switched demo preview role to ${DEMO_USERS[role].name}.`);
+  // Demo role switching is disabled while using real authentication.
+  const handleSelectDemoRole = (_role: UserRole) => {
+    setToastMessage("Roles are assigned by your TechSpace account.");
   };
 
   const handleToggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  const handleLogout = () => {
+    logout();
+    setAuthUser(null);
   };
 
   const mainDateLabel =
-    viewMode === 'month'
+    viewMode === "month"
       ? formatMonthYearLabel(mainYear, mainMonthIndex)
-      : viewMode === 'week'
+      : viewMode === "week"
         ? formatWeekRangeLabel(weekAnchorDateKey)
         : formatFullDateWithYear(weekAnchorDateKey);
 
@@ -738,7 +939,7 @@ export function App() {
       {/* Desktop Conditional Slide/Width Panel */}
       <div
         className="hidden lg:flex ts-right-panel-slot"
-        data-open={isMeetingsPanelOpen ? 'true' : 'false'}
+        data-open={isMeetingsPanelOpen ? "true" : "false"}
         aria-hidden={!isMeetingsPanelOpen}
       >
         <RightPanel
@@ -781,7 +982,7 @@ export function App() {
             setEditingGhostRange(null);
             setConvertingGhostRange(hold);
             setDragSelection(null);
-            setModalSchedulingKind('confirmed');
+            setModalSchedulingKind("confirmed");
             setIsAdminModalOpen(true);
           }}
         />
@@ -792,18 +993,20 @@ export function App() {
         aria-hidden={!isMeetingsPanelOpen}
         className={`lg:hidden fixed inset-0 z-40 flex justify-end ts-transition transition-opacity duration-[240ms] ${
           isMeetingsPanelOpen
-            ? 'opacity-100 pointer-events-auto'
-            : 'opacity-0 pointer-events-none'
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
         }`}
         style={{
           backgroundColor:
-            theme === 'dark' ? 'rgba(10, 10, 12, 0.72)' : 'rgba(30, 27, 24, 0.32)',
+            theme === "dark"
+              ? "rgba(10, 10, 12, 0.72)"
+              : "rgba(30, 27, 24, 0.32)",
         }}
         onClick={handleCloseMeetingsPanel}
       >
         <div
           className={`w-[300px] max-w-[90vw] h-full p-3 ts-transition transition-transform duration-[250ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            isMeetingsPanelOpen ? 'translate-x-0' : 'translate-x-full'
+            isMeetingsPanelOpen ? "translate-x-0" : "translate-x-full"
           }`}
           onClick={(e) => e.stopPropagation()}
         >
@@ -847,7 +1050,7 @@ export function App() {
               setEditingGhostRange(null);
               setConvertingGhostRange(hold);
               setDragSelection(null);
-              setModalSchedulingKind('confirmed');
+              setModalSchedulingKind("confirmed");
               setIsAdminModalOpen(true);
             }}
           />
@@ -856,68 +1059,90 @@ export function App() {
     </>
   );
 
+  if (authLoading) {
+    return (
+      <div
+        className={`min-h-screen flex flex-col items-center justify-center gap-4 ${
+          theme === "dark" ? "ts-graphite-grid" : "ts-cream-grid"
+        }`}
+        style={{ color: palette.textPrimary }}
+      >
+        <LumaSpin />
+        <span className="text-[14px] font-medium tracking-wide">
+          Loading TechSpace...
+        </span>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <LoginPage
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        onLogin={(user) => {
+          setAuthUser(user);
+          setActiveNav("dashboard");
+        }}
+      />
+    );
+  }
+
   // UNIFIED LAYOUT SHELL (Light Mode = single source of truth for layout across both themes)
   return (
     <div
-      className={`relative min-h-screen w-full overflow-x-hidden ${
-        theme === 'light' ? 'ts-cream-grid' : 'ts-graphite-grid'
+      className={`relative min-h-screen h-screen overflow-hidden w-full overflow-x-hidden ${
+        theme === "light" ? "ts-cream-grid" : "ts-graphite-grid"
       }`}
     >
       <BackgroundDecor theme={theme} />
 
-      <div className="relative z-10 w-full px-3 sm:px-4 md:px-5 lg:px-6 py-3.5 sm:py-4 lg:py-5 min-h-screen flex flex-col gap-3.5">
-        {/* Top Navigation Bar */}
-        <TopNavBar
-          theme={theme}
-          palette={palette}
-          currentUser={currentUser}
-          onSelectDemoRole={handleSelectDemoRole}
-          onBrandClick={() => setActiveNav('calendar')}
-          onToggleTheme={handleToggleTheme}
-          todayEvents={todayEvents}
-          clubs={CLUBS}
-          announcements={announcements}
-          dismissedAnnouncementIds={dismissedAnnouncementIds}
-          onDismissAnnouncement={(id) =>
-            setDismissedAnnouncementIds((prev) =>
-              prev.includes(id) ? prev : [...prev, id]
-            )
-          }
-          notifications={authorizedNotifications}
-          onMarkNotificationRead={(id) =>
-            setNotifications((prev) =>
-              prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-            )
-          }
-          onDismissNotification={(id) =>
-            setNotifications((prev) => prev.filter((n) => n.id !== id))
-          }
-          onSelectEventFromHeader={(ev) => {
-            setActiveNav('calendar');
-            setSelectedClubFilters([]);
-            handleSelectEvent(ev);
-          }}
-          onOpenNotificationDate={(dateKey) => {
-            setActiveNav('calendar');
-            handleSelectMainDate(dateKey);
-          }}
-        />
-
+      <div className="relative z-10 w-full px-2.5 sm:px-4 lg:px-4 xl:px-6 py-2 sm:py-3 lg:py-3 xl:py-4 h-full min-h-0 flex flex-col gap-2 sm:gap-2.5 xl:gap-3.5">
         {/* Workspace Content */}
-        <div className="ts-workspace-grid flex-1 min-h-0">
+        <div className="ts-workspace-grid flex-1 min-h-0 overflow-hidden">
           {/* Permanent 60px Left Navigation Rail */}
           <NavRail
             theme={theme}
             palette={palette}
             activeNav={activeNav}
             onSelectNav={setActiveNav}
-            onOpenMore={() => setIsMoreDrawerOpen(true)}
+            currentUser={currentUser}
+            onSelectDemoRole={handleSelectDemoRole}
+            onToggleTheme={handleToggleTheme}
+            todayEvents={todayEvents}
+            clubs={CLUBS}
+            announcements={announcements}
+            dismissedAnnouncementIds={dismissedAnnouncementIds}
+            onDismissAnnouncement={(id) =>
+              setDismissedAnnouncementIds((prev) =>
+                prev.includes(id) ? prev : [...prev, id],
+              )
+            }
+            notifications={authorizedNotifications}
+            onMarkNotificationRead={(id) =>
+              setNotifications((prev) =>
+                prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+              )
+            }
+            onDismissNotification={(id) =>
+              setNotifications((prev) => prev.filter((n) => n.id !== id))
+            }
+            onSelectEventFromHeader={(ev) => {
+              setActiveNav("calendar");
+              setSelectedClubFilters([]);
+              handleSelectEvent(ev);
+            }}
+            onOpenNotificationDate={(dateKey) => {
+              setActiveNav("calendar");
+              handleSelectMainDate(dateKey);
+            }}
+            onLogout={handleLogout}
           />
 
-          {activeNav === 'calendar' ? (
-            <div className="ts-calendar-grid flex-1 min-w-0 min-h-0">
+          {activeNav === "calendar" ? (
+            <div className="ts-calendar-grid flex-1 min-w-0 min-h-0 overflow-hidden">
               {/* Desktop Fluid Left Panel: Mini-Calendar + Club Filters */}
-              <div className="hidden lg:block lg:mr-3.5">
+              <div className="hidden lg:block lg:mr-2.5 xl:mr-3.5 lg:h-full lg:overflow-hidden">
                 <LeftPanel
                   theme={theme}
                   palette={palette}
@@ -932,7 +1157,11 @@ export function App() {
                   ghostRanges={filteredGhostRanges}
                   selectedDateMeetingCount={selectedDayEvents.length}
                   clubs={meetingClubs}
-                  activeClubFilter={isAllClubsSelected ? 'all' : selectedClubFilters[0] ?? 'all'}
+                  activeClubFilter={
+                    isAllClubsSelected
+                      ? "all"
+                      : (selectedClubFilters[0] ?? "all")
+                  }
                   selectedClubFilters={selectedClubFilters}
                   onSelectClubFilter={handleSelectClubFilter}
                 />
@@ -942,19 +1171,21 @@ export function App() {
               <div
                 className={`lg:hidden fixed inset-0 z-40 flex justify-start ts-transition transition-opacity duration-[240ms] ${
                   isLeftDrawerOpen
-                    ? 'opacity-100 pointer-events-auto'
-                    : 'opacity-0 pointer-events-none'
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none"
                 }`}
                 style={{
                   backgroundColor:
-                    theme === 'dark' ? 'rgba(10, 10, 12, 0.72)' : 'rgba(30, 27, 24, 0.32)',
+                    theme === "dark"
+                      ? "rgba(10, 10, 12, 0.72)"
+                      : "rgba(30, 27, 24, 0.32)",
                 }}
                 onClick={() => setIsLeftDrawerOpen(false)}
                 aria-hidden={!isLeftDrawerOpen}
               >
                 <div
                   className={`w-[290px] max-w-[88vw] h-full p-3 overflow-y-auto ts-scroll ts-transition transition-transform duration-[250ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                    isLeftDrawerOpen ? 'translate-x-0' : '-translate-x-full'
+                    isLeftDrawerOpen ? "translate-x-0" : "-translate-x-full"
                   }`}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -996,7 +1227,11 @@ export function App() {
                     ghostRanges={filteredGhostRanges}
                     selectedDateMeetingCount={selectedDayEvents.length}
                     clubs={meetingClubs}
-                    activeClubFilter={isAllClubsSelected ? 'all' : selectedClubFilters[0] ?? 'all'}
+                    activeClubFilter={
+                      isAllClubsSelected
+                        ? "all"
+                        : (selectedClubFilters[0] ?? "all")
+                    }
                     selectedClubFilters={selectedClubFilters}
                     onSelectClubFilter={handleSelectClubFilter}
                   />
@@ -1005,7 +1240,7 @@ export function App() {
 
               {/* Main Calendar Area (Opaque background, adapts smoothly without animating resize frames) */}
               <main
-                className="flex-1 min-w-0 rounded-[20px] border p-3.5 sm:p-5 flex flex-col transition-colors duration-150"
+                className="flex-1 min-w-0 min-h-0 overflow-hidden rounded-[18px] sm:rounded-[20px] border p-2.5 sm:p-3.5 xl:p-4.5 flex flex-col transition-colors duration-150"
                 style={{
                   background: palette.surfaceBackground,
                   borderColor: palette.border,
@@ -1036,66 +1271,21 @@ export function App() {
                 </div>
 
                 {/* Shared Calendar Header Toolbar (Day/Week/Month toggle ALWAYS TOP-LEFT) */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-2.5 xl:gap-3 mb-2 sm:mb-2.5 xl:mb-3.5 shrink-0">
                   {/* Left: Day / Week / Month Three-Way Segmented Control */}
-                  <div
-                    role="group"
-                    aria-label="Calendar view mode"
-                    className="order-1 inline-flex items-center p-1 rounded-full shrink-0"
-                    style={{ backgroundColor: palette.segmentedTrackBg }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewMode('day');
-                        setWeekAnchorDateKey(selectedDateKey ?? weekAnchorDateKey ?? todayDateKey);
-                      }}
-                      className="ts-btn px-3 sm:px-4 py-1.5 rounded-full text-[12.5px] sm:text-[13px] font-semibold cursor-pointer whitespace-nowrap"
-                      style={{
-                        backgroundColor:
-                          viewMode === 'day' ? palette.accentBg : 'transparent',
-                        color:
-                          viewMode === 'day'
-                            ? palette.accentText
-                            : palette.textMuted,
-                      }}
-                    >
-                      Day
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewMode('week');
-                        setWeekAnchorDateKey(selectedDateKey ?? weekAnchorDateKey ?? todayDateKey);
-                      }}
-                      className="ts-btn px-3 sm:px-4 py-1.5 rounded-full text-[12.5px] sm:text-[13px] font-semibold cursor-pointer whitespace-nowrap"
-                      style={{
-                        backgroundColor:
-                          viewMode === 'week' ? palette.accentBg : 'transparent',
-                        color:
-                          viewMode === 'week'
-                            ? palette.accentText
-                            : palette.textMuted,
-                      }}
-                    >
-                      Week
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('month')}
-                      className="ts-btn px-3 sm:px-4 py-1.5 rounded-full text-[12.5px] sm:text-[13px] font-semibold cursor-pointer whitespace-nowrap"
-                      style={{
-                        backgroundColor:
-                          viewMode === 'month' ? palette.accentBg : 'transparent',
-                        color:
-                          viewMode === 'month'
-                            ? palette.accentText
-                            : palette.textMuted,
-                      }}
-                    >
-                      Month
-                    </button>
-                  </div>
+                  <SpringSegmentedControl<CalendarViewMode>
+                    options={VIEW_MODE_OPTIONS}
+                    value={viewMode}
+                    onChange={handleViewModeChange}
+                    trackBg={palette.segmentedTrackBg}
+                    activeBg={palette.accentBg}
+                    activeText={palette.accentText}
+                    inactiveText={palette.textMuted}
+                    className="order-1 p-1 rounded-full shrink-0"
+                    buttonClassName="ts-btn px-3 sm:px-4 py-1.5 rounded-full text-[12.5px] sm:text-[13px] font-semibold whitespace-nowrap"
+                    ariaLabel="Calendar view mode"
+                    style={{ "--pill-inset": "8px" } as React.CSSProperties}
+                  />
 
                   {/* Center: Date Navigation */}
                   <div className="order-3 sm:order-2 w-full sm:w-auto flex items-center justify-center gap-3 sm:gap-5">
@@ -1103,11 +1293,11 @@ export function App() {
                       type="button"
                       onClick={handleMainPrev}
                       aria-label={
-                        viewMode === 'month'
-                          ? 'Previous month'
-                          : viewMode === 'week'
-                            ? 'Previous week'
-                            : 'Previous day'
+                        viewMode === "month"
+                          ? "Previous month"
+                          : viewMode === "week"
+                            ? "Previous week"
+                            : "Previous day"
                       }
                       className="ts-icon-btn w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"
                       style={{ color: palette.textSecondary }}
@@ -1126,11 +1316,11 @@ export function App() {
                       type="button"
                       onClick={handleMainNext}
                       aria-label={
-                        viewMode === 'month'
-                          ? 'Next month'
-                          : viewMode === 'week'
-                            ? 'Next week'
-                            : 'Next day'
+                        viewMode === "month"
+                          ? "Next month"
+                          : viewMode === "week"
+                            ? "Next week"
+                            : "Next day"
                       }
                       className="ts-icon-btn w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"
                       style={{ color: palette.textSecondary }}
@@ -1167,7 +1357,7 @@ export function App() {
                     <span>
                       {rangePickStart
                         ? `Start date selected (${rangePickStart}). Click an end date on the calendar.`
-                        : 'Click a start date on the calendar for your tentative hold.'}
+                        : "Click a start date on the calendar for your tentative hold."}
                     </span>
                     <button
                       type="button"
@@ -1188,7 +1378,7 @@ export function App() {
                 )}
 
                 {/* Active Calendar View */}
-                {viewMode === 'month' ? (
+                {viewMode === "month" ? (
                   <MonthView
                     theme={theme}
                     palette={palette}
@@ -1211,11 +1401,11 @@ export function App() {
                       setConvertingGhostRange(null);
                       setPickedCalendarRange(null);
                       setDragSelection({ startDate, endDate });
-                      setModalSchedulingKind('confirmed');
+                      setModalSchedulingKind("confirmed");
                       setIsAdminModalOpen(true);
                     }}
                   />
-                ) : viewMode === 'week' ? (
+                ) : viewMode === "week" ? (
                   <WeekView
                     theme={theme}
                     palette={palette}
@@ -1240,7 +1430,7 @@ export function App() {
                         startTime,
                         endTime,
                       });
-                      setModalSchedulingKind('confirmed');
+                      setModalSchedulingKind("confirmed");
                       setIsAdminModalOpen(true);
                     }}
                   />
@@ -1269,7 +1459,7 @@ export function App() {
                         startTime,
                         endTime,
                       });
-                      setModalSchedulingKind('confirmed');
+                      setModalSchedulingKind("confirmed");
                       setIsAdminModalOpen(true);
                     }}
                   />
@@ -1279,7 +1469,7 @@ export function App() {
               {/* Conditional Right Meetings Panel */}
               {renderConditionalMeetingsPanel()}
             </div>
-          ) : activeNav === 'meets' ? (
+          ) : activeNav === "meets" ? (
             <AllMeetsView
               theme={theme}
               palette={palette}
@@ -1299,50 +1489,20 @@ export function App() {
               onUpdateEventMom={handleUpdateEventMom}
               onOpenCreateModal={openFreshAdminModal}
             />
-          ) : activeNav === 'dashboard' ? (
-            <Dashboard
-              user={dashboardUser}
-              role={dashboardRole}
-              meetings={dashboardMeetings}
-              setMeetings={setDashboardMeetings}
-              theme={theme}
-              onNavigateCalendar={() => setActiveNav('calendar')}
-            />
-          ) : (
-            <main
-              className="flex-1 rounded-[20px] border p-8 flex flex-col items-center justify-center text-center"
-              style={{
-                background: palette.surfaceBackground,
-                borderColor: palette.border,
-                boxShadow: palette.cardShadow,
-              }}
-            >
-              <h1
-                className="text-[20px] font-bold tracking-tight"
-                style={{ color: palette.textPrimary }}
-              >
-                TechSpace Hierarchy
-              </h1>
-              <p
-                className="text-[13.5px] mt-2 max-w-[420px]"
-                style={{ color: palette.textMuted }}
-              >
-                Club reporting lines for Core Team, Web Dev, Design, and Operations are managed here. Return to Calendar to inspect scheduled sessions.
-              </p>
-              <button
-                type="button"
-                onClick={() => setActiveNav('calendar')}
-                className="ts-btn mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-semibold cursor-pointer"
-                style={{
-                  backgroundColor: palette.accentBg,
-                  color: palette.accentText,
-                }}
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Return to Calendar</span>
-              </button>
-            </main>
-          )}
+          ) : activeNav === "dashboard" ? (
+            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto ts-scroll ts-page-scroll">
+              <Dashboard
+                user={dashboardUser}
+                role={dashboardRole}
+                meetings={dashboardMeetings}
+                setMeetings={setDashboardMeetings}
+                theme={theme}
+                onNavigateCalendar={() => setActiveNav("calendar")}
+                announcements={announcements}
+                onSubmitAnnouncement={handleSubmitAnnouncement}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1358,7 +1518,10 @@ export function App() {
             boxShadow: palette.cardShadow,
           }}
         >
-          <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: palette.textSecondary }} />
+          <CheckCircle2
+            className="w-4 h-4 shrink-0"
+            style={{ color: palette.textSecondary }}
+          />
           <span>{toastMessage}</span>
           <button
             type="button"
@@ -1371,16 +1534,6 @@ export function App() {
           </button>
         </div>
       )}
-
-      <SideNavDrawer
-        isOpen={isMoreDrawerOpen}
-        theme={theme}
-        palette={palette}
-        activeNav={activeNav}
-        onSelectNav={setActiveNav}
-        onClose={() => setIsMoreDrawerOpen(false)}
-        onToggleTheme={handleToggleTheme}
-      />
 
       {/* Admin Controls / Scheduling Modal */}
       {isAdminModalOpen && canAccessAdminControls(currentUser) && (
@@ -1400,7 +1553,7 @@ export function App() {
           dragSelection={dragSelection}
           onRequestCalendarRangePick={() => {
             setIsAdminModalOpen(false);
-            setViewMode('month');
+            setViewMode("month");
             setIsPickingGhostRange(true);
             setRangePickStart(null);
             setDragSelection(null);

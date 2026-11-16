@@ -25,8 +25,8 @@
 
 /* Subtle custom scrollbars for week grid and panels */
 .ts-scroll::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 .ts-scroll::-webkit-scrollbar-track {
@@ -34,12 +34,71 @@
 }
 
 .ts-scroll::-webkit-scrollbar-thumb {
-  background: rgba(140, 130, 120, 0.25);
+  background: rgba(140, 130, 120, 0.22);
   border-radius: 9999px;
 }
 
 .dark .ts-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.2);
+}
+
+/* Left sidebar subtle charcoal-gray auto-hiding scrollbar (3.5px width, inset track) */
+.ts-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 200ms ease;
+}
+
+aside:hover .ts-sidebar-scroll,
+.ts-sidebar-scroll:hover,
+.ts-sidebar-scroll:active,
+.ts-sidebar-scroll:focus-within {
+  scrollbar-color: rgba(55, 65, 81, 0.38) transparent;
+}
+
+.dark aside:hover .ts-sidebar-scroll,
+.dark .ts-sidebar-scroll:hover,
+.dark .ts-sidebar-scroll:active,
+.dark .ts-sidebar-scroll:focus-within {
+  scrollbar-color: rgba(156, 163, 175, 0.38) transparent;
+}
+
+.ts-sidebar-scroll::-webkit-scrollbar {
+  width: 3.5px;
+  height: 3.5px;
+}
+
+.ts-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 16px 0;
+}
+
+.ts-sidebar-scroll::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 9999px;
+  transition: background-color 200ms ease;
+}
+
+aside:hover .ts-sidebar-scroll::-webkit-scrollbar-thumb,
+.ts-sidebar-scroll:hover::-webkit-scrollbar-thumb,
+.ts-sidebar-scroll:active::-webkit-scrollbar-thumb,
+.ts-sidebar-scroll:focus-within::-webkit-scrollbar-thumb {
+  background-color: rgba(55, 65, 81, 0.38);
+}
+
+.dark aside:hover .ts-sidebar-scroll::-webkit-scrollbar-thumb,
+.dark .ts-sidebar-scroll:hover::-webkit-scrollbar-thumb,
+.dark .ts-sidebar-scroll:active::-webkit-scrollbar-thumb,
+.dark .ts-sidebar-scroll:focus-within::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.38);
+}
+
+.ts-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(55, 65, 81, 0.6);
+}
+
+.dark .ts-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(209, 213, 219, 0.55);
 }
 
 /* Light Mode exposed page-background graph-paper pattern */
@@ -80,6 +139,34 @@
   }
 }
 
+/* Page-level scroll wrapper (Dashboard, long-content pages).
+   Uses same subtle scrollbar as ts-scroll but hidden on the workspace grid level. */
+.ts-page-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 90, 80, 0.18) transparent;
+}
+
+.dark .ts-page-scroll {
+  scrollbar-color: rgba(160, 160, 175, 0.18) transparent;
+}
+
+.ts-page-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ts-page-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ts-page-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 90, 80, 0.18);
+  border-radius: 9999px;
+}
+
+.dark .ts-page-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(160, 160, 175, 0.18);
+}
+
 /* Fluid Adaptive Workspace & Calendar Grid */
 .ts-workspace-grid {
   display: flex;
@@ -93,6 +180,7 @@
     grid-template-columns: 60px minmax(0, 1fr);
     align-items: stretch;
     gap: 0.875rem;
+    height: 100%;
   }
 }
 
@@ -106,8 +194,10 @@
 @media (min-width: 1024px) {
   .ts-calendar-grid {
     display: grid;
-    grid-template-columns: clamp(185px, 15vw, 220px) minmax(0, 1fr) auto;
+    grid-template-columns: clamp(170px, 14vw, 215px) minmax(0, 1fr) auto;
     align-items: stretch;
+    height: 100%;
+    min-height: 0;
   }
 }
 
@@ -124,8 +214,8 @@
 }
 
 .ts-right-panel-slot[data-open='true'] {
-  width: clamp(230px, 19vw, 280px);
-  margin-left: 0.875rem;
+  width: clamp(210px, 18vw, 275px);
+  margin-left: clamp(0.5rem, 1vw, 0.875rem);
   opacity: 1;
   pointer-events: auto;
 }
@@ -284,6 +374,45 @@
 
 .ts-popover-enter {
   animation: ts-panel-enter 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Luma Spin Animation */
+@keyframes loaderAnim {
+  0% {
+    inset: 0 35px 35px 0;
+  }
+  12.5% {
+    inset: 0 35px 0 0;
+  }
+  25% {
+    inset: 35px 35px 0 0;
+  }
+  37.5% {
+    inset: 35px 0 0 0;
+  }
+  50% {
+    inset: 35px 0 0 35px;
+  }
+  62.5% {
+    inset: 0 0 0 35px;
+  }
+  75% {
+    inset: 0 0 35px 35px;
+  }
+  87.5% {
+    inset: 0 0 35px 0;
+  }
+  100% {
+    inset: 0 35px 35px 0;
+  }
+}
+
+.animate-loaderAnim {
+  animation: loaderAnim 2.5s infinite;
+}
+
+.animation-delay {
+  animation-delay: -1.25s;
 }
 
 

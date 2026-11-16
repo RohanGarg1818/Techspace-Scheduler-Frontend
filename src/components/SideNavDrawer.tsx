@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   CalendarDays,
   ClipboardList,
-  Network,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -44,12 +43,6 @@ const DESTINATIONS: {
     label: 'All Meets',
     description: 'Past, today, and upcoming meetings',
     icon: ClipboardList,
-  },
-  {
-    id: 'hierarchy',
-    label: 'Hierarchy',
-    description: 'Club teams and leads',
-    icon: Network,
   },
 ];
 

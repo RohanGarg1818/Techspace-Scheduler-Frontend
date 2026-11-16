@@ -112,14 +112,14 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
 
   return (
     <aside
-      className="w-full lg:h-full shrink-0 rounded-[20px] border p-4 flex flex-col justify-between transition-colors duration-150"
+      className="w-full lg:h-full shrink-0 rounded-[20px] border p-3 sm:p-3.5 xl:p-4 flex flex-col transition-colors duration-150 overflow-hidden"
       style={{
         background: palette.surfaceBackground,
         borderColor: palette.border,
         boxShadow: palette.cardShadow,
       }}
     >
-      <div>
+      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto ts-sidebar-scroll pr-0.5">
         {/* Mini Calendar Section */}
         <div>
           <h2
@@ -136,7 +136,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           </p>
 
           {/* Mini Month Header */}
-          <div className="flex items-center justify-between mt-4 mb-3">
+          <div className="flex items-center justify-between mt-2 mb-1.5 sm:mt-2.5 sm:mb-2 xl:mt-3 xl:mb-2 px-0.5">
             <button
               type="button"
               onClick={onPrevMiniMonth}
@@ -166,11 +166,11 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           </div>
 
           {/* Weekday Labels */}
-          <div className="grid grid-cols-7 gap-x-0.5 text-center mb-1.5">
+          <div className="grid grid-cols-7 gap-x-0.5 text-center mb-1 px-0.5">
             {MINI_WEEKDAYS.map((day) => (
               <span
                 key={day}
-                className="text-[10px] font-medium"
+                className="text-[9.5px] font-medium"
                 style={{ color: palette.textMuted }}
               >
                 {day}
@@ -179,39 +179,41 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           </div>
 
           {/* Mini Calendar Days */}
-          <div className="grid grid-cols-7 gap-x-0.5 gap-y-1">
+          <div className="grid grid-cols-7 gap-x-0.5 gap-y-0.5 px-0.5">
             {miniDays.map((cell) => {
               const isSelected = cell.dateKey === selectedDateKey;
               const isToday = cell.dateKey === todayDateKey;
               const dayEvents = cell.isCurrentMonth
                 ? (dayEventsMap.get(cell.dateKey) ?? [])
                 : [];
-              const clubDots = cell.isCurrentMonth
-                ? (dateClubDotsMap.get(cell.dateKey) ?? [])
-                : [];
-              const isBusy = dayEvents.length >= 2;
-              const hasClash = hasActualTimeClashOnDay(dayEvents);
+              const meetingCount = dayEvents.length;
+              const hasMeeting = meetingCount > 0;
               const hasGhostHold =
                 cell.isCurrentMonth &&
                 ghostRanges.some((g) =>
                   isDateInRange(cell.dateKey, g.startDate, g.endDate),
                 );
 
+              const meetingTooltip = hasMeeting
+                ? `${meetingCount} ${meetingCount === 1 ? "meeting" : "meetings"}`
+                : hasGhostHold
+                  ? "Tentative hold"
+                  : undefined;
+
+              const clubId = dayEvents[0]?.clubId;
+              const clubTokens = clubId
+                ? (CLUB_THEME_TOKENS[theme]?.[clubId] ?? CLUB_THEME_TOKENS[theme]?.["core-team"])
+                : null;
+              const dotColor = clubTokens?.dot ?? palette.accentBg;
+
               return (
                 <button
                   key={cell.dateKey}
                   type="button"
                   onClick={() => onSelectDate(cell.dateKey)}
-                  title={
-                    hasClash
-                      ? "Schedule clash detected"
-                      : isBusy
-                        ? `${dayEvents.length} meetings (busy day)`
-                        : hasGhostHold
-                          ? "Tentative hold"
-                          : undefined
-                  }
-                  className="ts-mini-day relative h-8 w-full rounded-[7px] flex flex-col items-center justify-center gap-[2px] text-[11.5px] tabular-nums cursor-pointer"
+                  title={meetingTooltip}
+                  aria-label={meetingTooltip ? `${cell.dayNumber}, ${meetingTooltip}` : undefined}
+                  className="ts-mini-day relative h-6 sm:h-6.5 w-full rounded-[5px] flex flex-col items-center justify-center gap-[1px] text-[10px] sm:text-[10.5px] tabular-nums cursor-pointer transition-colors"
                   data-selected={isSelected ? "true" : "false"}
                   style={{
                     backgroundColor: isSelected
@@ -234,27 +236,12 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                           : "1px solid transparent",
                   }}
                 >
-                  {hasClash && (
-                    <AlertTriangle
-                      className="absolute top-[2px] right-[2px] w-[8px] h-[8px]"
-                      style={{ color: palette.mandatoryBadgeText }}
-                    />
-                  )}
                   <span className="leading-none">{cell.dayNumber}</span>
-                  <span className="h-[4px] flex items-center justify-center gap-[2px]">
-                    {clubDots.map((clubId) => (
+                  <span className="h-[3px] flex items-center justify-center">
+                    {hasMeeting && (
                       <span
-                        key={clubId}
-                        className="w-[3.5px] h-[3.5px] rounded-full shrink-0"
-                        style={{
-                          backgroundColor: CLUB_THEME_TOKENS[theme][clubId].dot,
-                        }}
-                      />
-                    ))}
-                    {isBusy && clubDots.length === 1 && (
-                      <span
-                        className="w-[3px] h-[3px] rounded-full shrink-0 opacity-60"
-                        style={{ backgroundColor: palette.textMuted }}
+                        className="w-[3px] h-[3px] rounded-full shrink-0"
+                        style={{ backgroundColor: dotColor }}
                       />
                     )}
                   </span>
@@ -264,7 +251,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           </div>
 
           {/* Day Meeting Summary */}
-          <div className="flex items-center gap-2 mt-3 pt-1">
+          <div className="flex items-center gap-2 mt-3.5 pt-0.5 px-0.5">
             <span
               className="w-1.5 h-1.5 rounded-full shrink-0"
               style={{ backgroundColor: "#3B82F6" }}
@@ -286,7 +273,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
 
         {/* Hairline Divider */}
         <div
-          className="my-4 border-t"
+          className="my-2 sm:my-2.5 xl:my-3.5 border-t"
           style={{ borderColor: palette.gridLine }}
         />
 
@@ -325,7 +312,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectClubFilter("all")}
-                className="ts-filter-row w-full flex items-center justify-between px-3 py-2.5 rounded-[11px] border text-left cursor-pointer"
+                className="ts-filter-row w-full flex items-center justify-between px-2.5 py-1.5 sm:py-2 xl:py-2.5 rounded-[9px] sm:rounded-[11px] border text-left cursor-pointer"
                 style={{
                   background: isAllSelected
                     ? palette.accentSoftBg
@@ -372,13 +359,15 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
               {/* Individual Club Filter Rows */}
               {clubs.map((club) => {
                 const isSelected = isClubSelected(club.id);
-                const clubTokens = CLUB_THEME_TOKENS[theme][club.id];
+                const clubTokens =
+                  CLUB_THEME_TOKENS[theme]?.[club.id] ??
+                  CLUB_THEME_TOKENS[theme]?.["core-team"];
                 return (
                   <button
                     key={club.id}
                     type="button"
                     onClick={() => onSelectClubFilter(club.id)}
-                    className="ts-filter-row group w-full flex items-center justify-between px-3 py-2.5 rounded-[11px] border text-left cursor-pointer"
+                    className="ts-filter-row group w-full flex items-center justify-between px-2.5 py-1.5 sm:py-2 xl:py-2.5 rounded-[9px] sm:rounded-[11px] border text-left cursor-pointer"
                     style={{
                       background: isSelected
                         ? clubTokens.filterRowActiveBg

@@ -101,14 +101,14 @@ export const RightPanel: React.FC<RightPanelProps> = ({
 
   return (
     <aside
-      className="w-full lg:w-[clamp(230px,19vw,280px)] shrink-0 rounded-[20px] border p-4 flex flex-col justify-between transition-colors duration-150 h-full"
+      className="w-full lg:w-[clamp(210px,18vw,275px)] shrink-0 rounded-[20px] border p-3 sm:p-3.5 xl:p-4 flex flex-col transition-colors duration-150 h-full overflow-hidden"
       style={{
         background: palette.surfaceBackground,
         borderColor: palette.border,
         boxShadow: palette.cardShadow,
       }}
     >
-      <div className="flex flex-col min-h-0">
+      <div className="flex flex-col flex-1 min-h-0">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -154,7 +154,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
 
         {/* Selected Event Detail View OR Day Meetings List + Tentative Holds */}
         {selectedEvent ? (
-          <div className="mt-4 overflow-y-auto ts-scroll pr-0.5 max-h-[430px]">
+          <div className="mt-4 overflow-y-auto ts-scroll pr-0.5 flex-1 min-h-0">
             <div
               className="rounded-[15px] border p-4"
               style={{

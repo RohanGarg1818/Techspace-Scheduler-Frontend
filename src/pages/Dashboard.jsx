@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import CreateMeetingModal from "../components/dashboard/CreateMeetingModal";
 import "../dashboard.css";
+import "../dashboard-responsive.css";
 import { teams } from "../data/dashboardData";
 
 const isPastMeeting = (meeting) =>
@@ -190,6 +191,8 @@ export default function Dashboard({
   onViewCalendar = () => {},
   theme = "light",
   onNavigateCalendar,
+  announcements = [],
+  onSubmitAnnouncement,
 }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState(null);
@@ -197,7 +200,8 @@ export default function Dashboard({
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementDescription, setAnnouncementDescription] = useState("");
-  const [announcementList, setAnnouncementList] = useState([]);
+  const [isSubmittingAnnouncement, setIsSubmittingAnnouncement] = useState(false);
+  const [announcementError, setAnnouncementError] = useState(null);
   const [tasks, setTasks] = useState([
     {
       id: "task1",
@@ -230,7 +234,8 @@ export default function Dashboard({
   ]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
-  const canManageMeetings = role === "Office Bearer" || role === "Team Lead";
+  const canManageMeetings =
+    role === "Office Bearer" || role === "Faculty" || role === "Team Lead";
   const isOBOrFaculty = role === "Office Bearer" || role === "Faculty";
   const isFaculty = role === "Faculty";
   const isExecutive = role === "Executive";
@@ -436,7 +441,10 @@ export default function Dashboard({
 
               <button
                 className="compact-create-btn"
-                onClick={() => setShowAnnouncementForm(true)}
+                onClick={() => {
+                  setShowAnnouncementForm(true);
+                  setAnnouncementError(null);
+                }}
               >
                 <Plus size={14} /> Make Announcement
               </button>
@@ -446,16 +454,32 @@ export default function Dashboard({
               <div className="announcement-form">
                 <h3>Create Announcement</h3>
 
+                {announcementError && (
+                  <p
+                    className="announcement-error"
+                    style={{
+                      color: "#ef4444",
+                      fontSize: "12px",
+                      marginBottom: "8px",
+                      lineHeight: "1.4",
+                    }}
+                  >
+                    {announcementError}
+                  </p>
+                )}
+
                 <input
                   type="text"
                   placeholder="Announcement title"
                   value={announcementTitle}
+                  disabled={isSubmittingAnnouncement}
                   onChange={(e) => setAnnouncementTitle(e.target.value)}
                 />
 
                 <textarea
                   placeholder="Write announcement details..."
                   value={announcementDescription}
+                  disabled={isSubmittingAnnouncement}
                   onChange={(e) => setAnnouncementDescription(e.target.value)}
                   rows={3}
                 />
@@ -463,10 +487,12 @@ export default function Dashboard({
                 <div className="announcement-form-actions">
                   <button
                     type="button"
+                    disabled={isSubmittingAnnouncement}
                     onClick={() => {
                       setShowAnnouncementForm(false);
                       setAnnouncementTitle("");
                       setAnnouncementDescription("");
+                      setAnnouncementError(null);
                     }}
                   >
                     Cancel
@@ -476,40 +502,54 @@ export default function Dashboard({
                     type="button"
                     className="compact-create-btn"
                     disabled={
+                      isSubmittingAnnouncement ||
                       !announcementTitle.trim() ||
                       !announcementDescription.trim()
                     }
-                    onClick={() => {
-                      setAnnouncementList((prev) => [
-                        {
-                          id: Date.now(),
+                    onClick={async () => {
+                      if (!onSubmitAnnouncement) {
+                        setAnnouncementError(
+                          "Announcement publishing is not configured.",
+                        );
+                        return;
+                      }
+                      setAnnouncementError(null);
+                      setIsSubmittingAnnouncement(true);
+                      try {
+                        await onSubmitAnnouncement({
                           title: announcementTitle.trim(),
-                          description: announcementDescription.trim(),
-                          date: new Date().toLocaleDateString("en-IN"),
-                          postedBy: user?.name,
-                        },
-                        ...prev,
-                      ]);
-
-                      setAnnouncementTitle("");
-                      setAnnouncementDescription("");
-                      setShowAnnouncementForm(false);
+                          content: announcementDescription.trim(),
+                          clubId: "announcements",
+                        });
+                        setAnnouncementTitle("");
+                        setAnnouncementDescription("");
+                        setShowAnnouncementForm(false);
+                      } catch (err) {
+                        setAnnouncementError(
+                          err?.message || "Failed to publish announcement.",
+                        );
+                      } finally {
+                        setIsSubmittingAnnouncement(false);
+                      }
                     }}
                   >
-                    Publish
+                    {isSubmittingAnnouncement ? "Publishing..." : "Publish"}
                   </button>
                 </div>
               </div>
             )}
 
             <div className="announcement-list">
-              {announcementList.length > 0 ? (
-                announcementList.map((item) => (
+              {announcements && announcements.length > 0 ? (
+                announcements.map((item) => (
                   <article className="announcement-card" key={item.id}>
                     <h3>{item.title}</h3>
-                    <p>{item.description}</p>
+                    <p>{item.content || item.description}</p>
                     <span>
-                      {item.date} · {item.postedBy}
+                      {item.createdAt
+                        ? new Date(item.createdAt).toLocaleDateString("en-IN")
+                        : (item.date || "Just now")}{" "}
+                      · {item.publisherName || item.postedBy || "TechSpace"}
                     </span>
                   </article>
                 ))

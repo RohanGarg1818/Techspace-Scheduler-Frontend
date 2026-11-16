@@ -1,0 +1,297 @@
+/* =================================================================
+   TechSpace Dashboard — Responsive Sizing Refinements
+   Goal: match Calendar's compact, viewport-fitted proportions.
+   Scoped to .dashboard-page. No global or Calendar style changes.
+   ================================================================= */
+
+/* ── Outer container: compact padding, proportional to viewport ── */
+.dashboard-page {
+  padding: clamp(10px, 1.2vh, 16px) clamp(14px, 2vw, 24px) clamp(14px, 2vh, 24px);
+}
+
+/* ── Welcome header: compact, no excess top space ── */
+.dashboard-page .minimal-welcome {
+  padding: 2px 2px 4px !important;
+  margin-bottom: clamp(8px, 1.2vh, 14px) !important;
+}
+
+.dashboard-page .minimal-welcome h1 {
+  font-size: clamp(20px, 2.4vw, 28px) !important;
+  letter-spacing: -0.8px !important;
+  line-height: 1.2 !important;
+}
+
+.dashboard-page .minimal-welcome > div::before {
+  margin-bottom: 4px;
+  font-size: 8px;
+}
+
+/* ── Panel base: tighter padding ── */
+.dashboard-page .panel,
+.dashboard-page .mini-calendar-panel,
+.dashboard-page .dashboard-scroll-panel,
+.dashboard-page .mom-panel,
+.dashboard-page .past-meetings-panel,
+.dashboard-page .announcement-panel,
+.dashboard-page .team-details-panel,
+.dashboard-page .team-tasks-panel,
+.dashboard-page .current-task-panel {
+  padding: clamp(12px, 1.5vh, 18px) clamp(14px, 1.8vw, 20px);
+}
+
+/* Panel heading: compact gap */
+.dashboard-page .panel-heading {
+  margin-bottom: clamp(8px, 1vh, 12px);
+}
+
+.dashboard-page .panel-heading h2 {
+  font-size: clamp(14px, 1.6vw, 17px) !important;
+}
+
+/* ── Primary grid: calendar + meetings side by side, never too tall ── */
+.dashboard-page .dashboard-primary-grid {
+  gap: clamp(10px, 1.4vw, 16px);
+  align-items: stretch;
+}
+
+/* ── Mini calendar: tighter cells ── */
+.dashboard-page .mini-calendar-month {
+  margin: 2px 0 6px !important;
+  font-size: 12px;
+}
+
+.dashboard-page .mini-calendar-grid {
+  gap: 2px 3px !important;
+}
+
+.dashboard-page .mini-calendar-grid span {
+  min-height: clamp(20px, 2.4vh, 26px) !important;
+  font-size: 10px !important;
+}
+
+/* ── Meetings panel: compact rows ── */
+.dashboard-page .dashboard-scroll-content {
+  max-height: clamp(160px, 22vh, 240px);
+}
+
+.dashboard-page .dashboard-meeting-row {
+  padding: clamp(8px, 1vh, 11px) 0;
+}
+
+.dashboard-page .meeting-date {
+  width: clamp(36px, 4vw, 44px);
+  height: clamp(38px, 5vh, 48px);
+}
+
+.dashboard-page .meeting-date strong {
+  font-size: clamp(15px, 1.8vw, 20px);
+}
+
+/* ── Secondary panels spacing ── */
+.dashboard-page .mom-panel,
+.dashboard-page .society-groups,
+.dashboard-page .past-meetings-panel,
+.dashboard-page .announcement-panel,
+.dashboard-page .team-tasks-panel {
+  margin-top: clamp(10px, 1.4vh, 16px);
+}
+
+/* ── MOM list ── */
+.dashboard-page .mom-list {
+  max-height: clamp(100px, 14vh, 160px);
+}
+
+/* ── Past meetings scroll ── */
+.dashboard-page .past-meetings-scroll {
+  height: clamp(140px, 18vh, 200px);
+}
+
+/* ── Team overview grids ── */
+.dashboard-page .team-overview-grid,
+.dashboard-page .executive-overview-grid {
+  gap: clamp(10px, 1.4vw, 16px);
+  margin-bottom: clamp(10px, 1.4vh, 16px);
+}
+
+/* ── Society groups ── */
+.dashboard-page .society-groups-grid {
+  gap: clamp(10px, 1.2vw, 14px);
+}
+
+.dashboard-page .society-group-card {
+  padding: clamp(12px, 1.4vh, 16px);
+}
+
+.dashboard-page .society-group-list {
+  gap: clamp(7px, 0.9vw, 10px);
+}
+
+.dashboard-page .society-club-card {
+  padding: clamp(9px, 1vh, 12px);
+}
+
+.dashboard-page .society-club-card h4 {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.dashboard-page .society-club-card p {
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+/* ── Minimal section headings ── */
+.dashboard-page .minimal-section-heading {
+  margin-bottom: clamp(8px, 1vh, 12px);
+}
+
+.dashboard-page .minimal-section-heading h2 {
+  font-size: clamp(14px, 1.6vw, 17px);
+}
+
+/* ── Team task form + cards ── */
+.dashboard-page .team-task-form {
+  margin: clamp(8px, 1vh, 12px) 0 clamp(10px, 1.2vh, 14px);
+  gap: clamp(8px, 1vw, 10px);
+}
+
+.dashboard-page .team-task-list {
+  max-height: clamp(130px, 17vh, 180px);
+  gap: 7px;
+}
+
+.dashboard-page .team-task-card {
+  padding: clamp(8px, 1vh, 11px) clamp(10px, 1.2vw, 13px);
+  min-height: 48px;
+}
+
+/* ── Announcement form ── */
+.dashboard-page .announcement-form {
+  padding: clamp(12px, 1.4vh, 16px);
+  gap: 10px;
+}
+
+.dashboard-page .announcement-list {
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.dashboard-page .announcement-card {
+  padding: clamp(10px, 1.2vh, 14px) clamp(12px, 1.4vw, 15px);
+}
+
+/* ── Responsive breakpoints ── */
+
+/* Large desktop (1920px+): allow slightly more breathing room */
+@media (min-width: 1600px) {
+  .dashboard-page {
+    padding: 16px 28px 28px;
+  }
+  .dashboard-page .minimal-welcome h1 {
+    font-size: 26px !important;
+  }
+  .dashboard-page .dashboard-scroll-content {
+    max-height: 260px;
+  }
+}
+
+/* Standard desktop (1280–1600px): target size for the compact look */
+@media (min-width: 1280px) and (max-width: 1600px) {
+  .dashboard-page {
+    padding: 12px 20px 20px;
+  }
+  .dashboard-page .minimal-welcome h1 {
+    font-size: 24px !important;
+  }
+  .dashboard-page .dashboard-scroll-content {
+    max-height: 220px;
+  }
+}
+
+/* 4:3 and compact desktops (1024–1280px) */
+@media (min-width: 1024px) and (max-width: 1280px) {
+  .dashboard-page {
+    padding: 10px 16px 18px;
+  }
+  .dashboard-page .minimal-welcome h1 {
+    font-size: 22px !important;
+  }
+  .dashboard-page .dashboard-primary-grid {
+    gap: 12px;
+  }
+  .dashboard-page .dashboard-scroll-content {
+    max-height: 190px;
+  }
+  .dashboard-page .mini-calendar-grid span {
+    min-height: 20px !important;
+  }
+  .dashboard-page .panel,
+  .dashboard-page .mini-calendar-panel,
+  .dashboard-page .dashboard-scroll-panel {
+    padding: 12px 14px;
+  }
+  .dashboard-page .society-group-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablet (768–1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .dashboard-page {
+    padding: 10px 14px 16px;
+  }
+  .dashboard-page .minimal-welcome h1 {
+    font-size: 20px !important;
+  }
+  .dashboard-page .dashboard-primary-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .dashboard-page .team-overview-grid,
+  .dashboard-page .executive-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-page .society-groups-grid,
+  .dashboard-page .society-group-list {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-page .dashboard-scroll-content {
+    max-height: 200px;
+  }
+}
+
+/* Mobile (< 768px) */
+@media (max-width: 767px) {
+  .dashboard-page {
+    padding: 10px 12px 16px;
+    border-radius: 14px;
+  }
+  .dashboard-page .minimal-welcome h1 {
+    font-size: 18px !important;
+  }
+  .dashboard-page .minimal-welcome {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .dashboard-page .dashboard-primary-grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-page .team-overview-grid,
+  .dashboard-page .executive-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-page .society-groups-grid,
+  .dashboard-page .society-group-list {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-page .team-task-form {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-page .dashboard-scroll-content {
+    max-height: 180px;
+  }
+  .dashboard-page .past-meetings-scroll {
+    height: 160px;
+  }
+}

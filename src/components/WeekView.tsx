@@ -237,15 +237,14 @@ export const WeekView: React.FC<WeekViewProps> = ({
               );
             })}
           </div>
+          </div>
         </div>
 
         {/* Hourly Time Grid */}
-        <div
-          className="flex flex-1 relative mt-1"
-          style={{ height: `${totalGridHeight + 16}px` }}
-        >
+        <div className="flex-1 min-h-0 overflow-y-auto ts-scroll relative mt-1">
+          <div className="flex relative" style={{ height: `${totalGridHeight + 16}px` }}>
           {/* Left Time Labels */}
-          <div className="w-14 sm:w-16 shrink-0 relative select-none">
+          <div className="w-12 sm:w-14 shrink-0 relative select-none">
             {HOURS.map((hour, index) => (
               <div
                 key={hour}

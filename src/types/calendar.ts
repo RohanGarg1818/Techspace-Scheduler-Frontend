@@ -4,7 +4,7 @@ export type CalendarViewMode = 'day' | 'week' | 'month';
 
 export type TimeSubfilter = 'day' | 'week' | 'month';
 
-export type NavSection = 'dashboard' | 'calendar' | 'meets' | 'hierarchy';
+export type NavSection = 'dashboard' | 'calendar' | 'meets';
 
 export type ClubId =
   | 'core-team'
@@ -79,8 +79,10 @@ export interface Announcement {
   clubId: ClubId;
   title: string;
   content: string;
+  priority?: 'normal' | 'urgent';
   publisherName: string;
-  publisherRole: UserRole;
+  publisherRole?: UserRole;
+  createdById?: string;
   createdAt: string; // ISO timestamp
   isDemoOnly: boolean;
 }

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { SpringSegmentedControl, SegmentOption } from './ui/SpringSegmentedControl';
 import {
   Calendar as CalendarIcon,
   Check,
@@ -190,6 +191,29 @@ export const AllMeetsView: React.FC<AllMeetsViewProps> = ({
         return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
       });
   }, [clubFilteredEvents, todayDateKey, upcomingBounds]);
+
+  const tabOptions = useMemo<SegmentOption<AllMeetsTab>[]>(
+    () => [
+      { value: 'past', label: 'Past Meets', badge: pastMeets.length },
+      { value: 'today', label: 'Today', badge: todayMeets.length },
+      { value: 'upcoming', label: 'Upcoming', badge: upcomingMeets.length },
+    ],
+    [pastMeets.length, todayMeets.length, upcomingMeets.length]
+  );
+
+  const TIME_SUBFILTER_OPTIONS = useMemo<SegmentOption<TimeSubfilter>[]>(
+    () => [
+      { value: 'day', label: 'day' },
+      { value: 'week', label: 'week' },
+      { value: 'month', label: 'month' },
+    ],
+    []
+  );
+
+  const handleTimeSubfilterChange = useCallback((sub: TimeSubfilter) => {
+    setTimeSubfilter(sub);
+    setSelectedEventId(null);
+  }, []);
 
   const handlePrevPeriod = () => {
     setSelectedEventId(null);
@@ -628,7 +652,7 @@ export const AllMeetsView: React.FC<AllMeetsViewProps> = ({
     <div className="flex flex-1 min-w-0 min-h-0">
       {/* Main All Meets Panel */}
       <main
-        className="flex-1 min-w-0 rounded-[20px] border p-4 sm:p-5 flex flex-col transition-colors duration-150"
+        className="flex-1 min-w-0 min-h-0 rounded-[20px] border p-3.5 sm:p-4 flex flex-col transition-colors duration-150"
         style={{
           background: palette.surfaceBackground,
           borderColor: palette.border,
@@ -652,49 +676,24 @@ export const AllMeetsView: React.FC<AllMeetsViewProps> = ({
           </div>
 
           {/* Three-Way Switch: Past Meets | Today (default) | Upcoming */}
-          <div
+          <SpringSegmentedControl<AllMeetsTab>
+            options={tabOptions}
+            value={activeTab}
+            onChange={handleTabChange}
+            trackBg={palette.segmentedTrackBg}
+            activeBg={palette.accentBg}
+            activeText={palette.accentText}
+            inactiveText={palette.textMuted}
+            activeBadgeBg="rgba(255, 255, 255, 0.22)"
+            activeBadgeText={palette.accentText}
+            inactiveBadgeBg={palette.buttonMutedBg}
+            inactiveBadgeText={palette.textSecondary}
+            className="w-full sm:w-auto flex sm:inline-flex p-1 rounded-full shrink-0"
+            buttonClassName="ts-btn flex-1 sm:flex-initial inline-flex items-center justify-center gap-0.5 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-[13px] font-semibold whitespace-nowrap min-w-0"
+            ariaLabel="Meeting timeframe filter"
             role="tablist"
-            aria-label="Meeting timeframe filter"
-            className="w-full sm:w-auto flex sm:inline-flex items-center p-1 rounded-full shrink-0"
-            style={{ backgroundColor: palette.segmentedTrackBg }}
-          >
-            {(
-              [
-                { id: 'past', label: 'Past Meets', count: pastMeets.length },
-                { id: 'today', label: 'Today', count: todayMeets.length },
-                { id: 'upcoming', label: 'Upcoming', count: upcomingMeets.length },
-              ] as const
-            ).map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={isActive}
-                  type="button"
-                  onClick={() => handleTabChange(tab.id)}
-                  className="ts-btn flex-1 sm:flex-initial inline-flex items-center justify-center gap-0.5 sm:gap-1.5 px-1.5 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-[13px] font-semibold cursor-pointer whitespace-nowrap min-w-0"
-                  style={{
-                    backgroundColor: isActive ? palette.accentBg : 'transparent',
-                    color: isActive ? palette.accentText : palette.textMuted,
-                  }}
-                >
-                  <span className="truncate">{tab.label}</span>
-                  <span
-                    className="px-1 sm:px-1.5 py-0.5 leading-none rounded-full text-[10px] sm:text-[10.5px] font-bold tabular-nums shrink-0"
-                    style={{
-                      backgroundColor: isActive
-                        ? 'rgba(255, 255, 255, 0.22)'
-                        : palette.buttonMutedBg,
-                      color: isActive ? palette.accentText : palette.textSecondary,
-                    }}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+            style={{ "--pill-inset": "8px" } as React.CSSProperties}
+          />
 
           {canAccessAdminControls(currentUser) && onOpenCreateModal && (
             <button
@@ -725,33 +724,19 @@ export const AllMeetsView: React.FC<AllMeetsViewProps> = ({
             >
               Period:
             </span>
-            <div
-              role="group"
-              aria-label="Time period subfilter"
-              className="inline-flex items-center p-0.5 sm:p-1 rounded-full shrink-0"
-              style={{ backgroundColor: palette.segmentedTrackBg }}
-            >
-              {(['day', 'week', 'month'] as const).map((sub) => {
-                const isActive = timeSubfilter === sub;
-                return (
-                  <button
-                    key={sub}
-                    type="button"
-                    onClick={() => {
-                      setTimeSubfilter(sub);
-                      setSelectedEventId(null);
-                    }}
-                    className="ts-btn px-2.5 sm:px-3.5 py-1 rounded-full text-[11px] sm:text-[12px] font-semibold cursor-pointer capitalize transition-colors"
-                    style={{
-                      backgroundColor: isActive ? palette.accentBg : 'transparent',
-                      color: isActive ? palette.accentText : palette.textMuted,
-                    }}
-                  >
-                    {sub}
-                  </button>
-                );
-              })}
-            </div>
+            <SpringSegmentedControl<TimeSubfilter>
+              options={TIME_SUBFILTER_OPTIONS}
+              value={timeSubfilter}
+              onChange={handleTimeSubfilterChange}
+              trackBg={palette.segmentedTrackBg}
+              activeBg={palette.accentBg}
+              activeText={palette.accentText}
+              inactiveText={palette.textMuted}
+              className="p-0.5 sm:p-1 rounded-full shrink-0"
+              buttonClassName="ts-btn px-2.5 sm:px-3.5 py-1 rounded-full text-[11px] sm:text-[12px] font-semibold capitalize"
+              ariaLabel="Time period subfilter"
+              style={{ "--pill-inset": "4px" } as React.CSSProperties}
+            />
           </div>
 
           {/* Date Range Navigation (for Past & Upcoming, or Today label) */}

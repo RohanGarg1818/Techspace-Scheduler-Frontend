@@ -213,12 +213,10 @@ export const DayView: React.FC<DayViewProps> = ({
     <div className="flex flex-col flex-1 min-h-0 select-none">
 
       {/* Hourly Time Grid */}
-      <div
-        className="flex flex-1 relative mt-1"
-        style={{ height: `${totalGridHeight + 16}px` }}
-      >
+      <div className="flex-1 min-h-0 overflow-y-auto ts-scroll relative mt-1">
+        <div className="flex relative" style={{ height: `${totalGridHeight + 16}px` }}>
         {/* Left Time Labels */}
-        <div className="w-14 sm:w-16 shrink-0 relative select-none">
+        <div className="w-12 sm:w-14 shrink-0 relative select-none">
           {HOURS.map((hour, index) => (
             <div
               key={hour}
@@ -280,17 +278,6 @@ export const DayView: React.FC<DayViewProps> = ({
             />
           ))}
 
-          {/* Empty Day Subtle Quote */}
-          {dayEvents.length === 0 && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 z-[1]">
-              <p
-                className="text-[15px] sm:text-[18px] font-light tracking-[0.26em] uppercase text-center opacity-45 select-none"
-                style={{ color: palette.textMuted }}
-              >
-                NO MEETS TODAY
-              </p>
-            </div>
-          )}
 
           {/* Live Drag-to-Schedule Preview Block */}
           {dragState?.active &&
@@ -459,6 +446,7 @@ export const DayView: React.FC<DayViewProps> = ({
               </button>
             );
           })}
+        </div>
         </div>
       </div>
     </div>
